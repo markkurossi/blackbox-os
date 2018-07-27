@@ -11,24 +11,11 @@ package main
 import (
 	"encoding/hex"
 	"fmt"
-	"io"
 	"syscall/js"
 	"time"
 
 	"github.com/markkurossi/sandbox-os/kernel/network"
 )
-
-var stdin io.WriteCloser
-
-func makeByteSlice(data js.Value) []byte {
-	len := data.Length()
-	bytes := make([]byte, len)
-	for i := 0; i < len; i++ {
-		v := data.Index(i).Int()
-		bytes[i] = byte(v)
-	}
-	return bytes
-}
 
 func main() {
 	init := js.Global().Get("init")
