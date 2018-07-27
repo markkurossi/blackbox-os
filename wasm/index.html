@@ -1,13 +1,17 @@
 <!doctype html>
 <html>
   <head>
-    <meta charset="utf-8">
+    <meta http-equiv="content-type" content="text/html;charset=UTF-8" />
     <title>Sandbox OS</title>
+    <link href="sandboxos.css" rel="stylesheet" type="text/css">
     <script src="wasm_exec.js"></script>
+    <script src="display.js"></script>
     <script src="net.js"></script>
     <script src="init.js"></script>
   </head>
-  <body onload="initJavaScript()">
-    <h1>Sandbox OS</h1>
+  <body onload="initJavaScript('fb')">
+    <div id="fb" class="frameBuffer">
+      abcdef
+    </div>
   </body>
 </html>

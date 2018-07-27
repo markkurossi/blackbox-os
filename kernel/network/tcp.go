@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net"
 	"syscall/js"
 	"time"
@@ -99,7 +100,7 @@ loop:
 	for {
 		select {
 		case msg := <-ws.C:
-			fmt.Printf("drain: msg %v\n", msg)
+			log.Printf("drain: msg %v\n", msg)
 
 		default:
 			break loop
@@ -130,14 +131,13 @@ func NewWebSocket(url string) *WebSocket {
 	flags := js.PreventDefault | js.StopPropagation
 
 	ws.onOpen = js.NewEventCallback(flags, func(event js.Value) {
-		fmt.Printf("ws.onOpen\n")
 		ws.C <- Message{
 			Type: Open,
 		}
 	})
 	ws.onMessage = js.NewCallback(func(args []js.Value) {
 		if len(args) != 1 {
-			fmt.Printf("Invalid onMessage data\n")
+			log.Printf("Invalid onMessage data\n")
 			return
 		}
 		data := args[0]
@@ -155,14 +155,13 @@ func NewWebSocket(url string) *WebSocket {
 		}
 	})
 	ws.onError = js.NewCallback(func(args []js.Value) {
-		fmt.Printf("ws.onError: %v\n", args)
+		log.Printf("ws.onError: %v\n", args)
 		ws.C <- Message{
 			Type:  Error,
 			Error: errors.New(args[0].String()),
 		}
 	})
 	ws.onClose = js.NewEventCallback(flags, func(event js.Value) {
-		fmt.Printf("ws.onClose\n")
 		ws.C <- Message{
 			Type: Close,
 		}

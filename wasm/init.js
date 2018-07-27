@@ -6,7 +6,12 @@
 // All rights reserved.
 //
 
-function initJavaScript() {
+var keyboardHandler;
+var display;
+
+function initJavaScript(displayId) {
+    display = new Display(document.getElementById(displayId));
+
     console.log("Booting...");
 
     if (!WebAssembly.instantiateStreaming) { // polyfill
@@ -16,12 +21,22 @@ function initJavaScript() {
         };
     }
 
-    //document.addEventListener('keydown', function(ev) {
-    //    console.log("keydown:", ev);
-    //    if (keyboardHandler) {
-    //        keyboardHandler(ev);
-    //    }
-    //})
+    document.addEventListener('keydown', function(ev) {
+        if (ev.metaKey) {
+            return;
+        }
+        if (keyboardHandler) {
+            keyboardHandler(ev);
+        }
+    })
+    document.addEventListener('keyup', function(ev) {
+        if (ev.metaKey) {
+            return;
+        }
+        if (keyboardHandler) {
+            keyboardHandler(ev);
+        }
+    })
 
     const go = new Go();
     let mod, inst;
@@ -34,7 +49,7 @@ function initJavaScript() {
             console.timeEnd("WebAssembly");
             async function run() {
                 await go.run(inst);
-                // uninit();
+                uninit();
                 // reset instance
                 inst = await WebAssembly.instantiate(mod, go.importObject);
                 console.log("Halted");
@@ -46,10 +61,24 @@ function initJavaScript() {
 
 function init(keyboard, mouse, input) {
     keyboardHandler = keyboard;
-    mouseHandler = mouse;
-    inputHandler = input;
 }
+
 function uninit() {
     keyboardHandler = undefined;
-    mouseHandler = undefined;
+}
+
+function displayWidth() {
+    return display.width;
+}
+
+function displayHeight() {
+    return display.height;
+}
+
+function displayClear() {
+    display.clear();
+}
+
+function displayAddLine(line) {
+    display.addLine(line);
 }
