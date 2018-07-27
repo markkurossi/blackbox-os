@@ -39,7 +39,7 @@ func main() {
 		fmt.Printf("Dial failed: %s\n", err)
 		return
 	}
-	if false {
+	if true {
 		go func() {
 			var buf [1024]byte
 			for {
@@ -55,6 +55,8 @@ func main() {
 	<-time.After(5 * time.Second)
 	conn.Close()
 
-	alert := js.Global().Get("alert")
-	alert.Invoke("Hello, Wasm!")
+	if false {
+		alert := js.Global().Get("alert")
+		alert.Invoke("Hello, Wasm!")
+	}
 }

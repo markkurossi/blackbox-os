@@ -10,6 +10,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/hex"
 	"flag"
 	"fmt"
@@ -18,6 +19,8 @@ import (
 	"net/http"
 
 	"github.com/gorilla/websocket"
+	"github.com/markkurossi/sandbox-os/lib/encoding"
+	"github.com/markkurossi/sandbox-os/lib/wsproxy"
 )
 
 func main() {
@@ -41,16 +44,34 @@ var upgrader = websocket.Upgrader{
 func proxy(w http.ResponseWriter, r *http.Request) {
 	ws, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		log.Print("upgrade:", err)
+		log.Printf("WebSocket upgrade failed: %s\n", err)
 		return
 	}
 	defer ws.Close()
 
-	log.Printf("New connection to %s\n", r.URL)
-
-	c, err := net.Dial("tcp", "localhost:2252")
+	_, msg, err := ws.ReadMessage()
 	if err != nil {
-		log.Printf("tcp dial: %s\n", err)
+		sendStatus(ws, false,
+			fmt.Sprintf("Failed to read dial message: %s", err))
+		return
+	}
+	dial := new(wsproxy.Dial)
+	err = encoding.Unmarshal(bytes.NewReader(msg), dial)
+	if err != nil {
+		sendStatus(ws, false, fmt.Sprintf("Invalid dial message: %s", err))
+		return
+	}
+
+	log.Printf("New connection to %s\n", dial.Addr)
+
+	c, err := net.DialTimeout("tcp", dial.Addr, dial.Timeout)
+	if err != nil {
+		sendStatus(ws, false, err.Error())
+		return
+	}
+	err = sendStatus(ws, true, "")
+	if err != nil {
+		log.Printf("Failed to send connect message: %s\n", err)
 		return
 	}
 
@@ -59,7 +80,7 @@ func proxy(w http.ResponseWriter, r *http.Request) {
 		for {
 			n, err := c.Read(buf[:])
 			if err != nil {
-				log.Printf("tcp.Read: %s\n", err)
+				log.Printf("TCP read failed: %s\n", err)
 				ws.Close()
 				return
 			}
@@ -67,7 +88,7 @@ func proxy(w http.ResponseWriter, r *http.Request) {
 
 			err = ws.WriteMessage(websocket.BinaryMessage, buf[:n])
 			if err != nil {
-				log.Printf("ws.Write: %s\n", err)
+				log.Printf("WebSocket write failed: %s\n", err)
 				ws.Close()
 				return
 			}
@@ -77,14 +98,26 @@ func proxy(w http.ResponseWriter, r *http.Request) {
 	for {
 		_, message, err := ws.ReadMessage()
 		if err != nil {
-			log.Println("read:", err)
+			log.Printf("WebSocket read failed: %s\n", err)
 			break
 		}
 		fmt.Printf("WS->TCP:\n%s", hex.Dump(message))
 		_, err = c.Write(message)
 		if err != nil {
-			log.Printf("tcp.write: %s\n", err)
+			log.Printf("TCP write failed: %s\n", err)
 			break
 		}
 	}
+}
+
+func sendStatus(ws *websocket.Conn, success bool, msg string) error {
+	log.Printf("Status: success=%v, msg=%s\n", success, msg)
+	data, err := encoding.Marshal(&wsproxy.Status{
+		Success: success,
+		Error:   msg,
+	})
+	if err != nil {
+		return err
+	}
+	return ws.WriteMessage(websocket.BinaryMessage, data)
 }

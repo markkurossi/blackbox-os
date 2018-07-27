@@ -9,11 +9,16 @@
 package network
 
 import (
+	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"net"
 	"syscall/js"
 	"time"
+
+	"github.com/markkurossi/sandbox-os/lib/encoding"
+	"github.com/markkurossi/sandbox-os/lib/wsproxy"
 )
 
 var (
@@ -22,18 +27,28 @@ var (
 	wsClose = js.Global().Get("webSocketClose")
 )
 
-func DialTimeout(address string, timeout time.Duration) (net.Conn, error) {
+func DialTimeout(addr string, timeout time.Duration) (net.Conn, error) {
 	url := "ws://localhost:8100/proxy"
 
-	ws := &WSConn{
+	conn := &WSConn{
 		ws: NewWebSocket(url),
 	}
 
 	// Wait for WebSocket to connect.
-	for msg := range ws.ws.C {
+	for msg := range conn.ws.C {
 		switch msg.Type {
 		case Open:
-			return ws, nil
+			// Dial.
+			req := wsproxy.Dial{
+				Addr:    addr,
+				Timeout: timeout,
+			}
+			data, err := encoding.Marshal(&req)
+			if err != nil {
+				conn.Close()
+				return nil, err
+			}
+			conn.Write(data)
 
 		case Error:
 			return nil, msg.Error
@@ -42,8 +57,15 @@ func DialTimeout(address string, timeout time.Duration) (net.Conn, error) {
 			return nil, fmt.Errorf("Connection closed")
 
 		case Data:
-			ws.onData(msg.Data)
-			return ws, nil
+			status := new(wsproxy.Status)
+			err := encoding.Unmarshal(bytes.NewReader(msg.Data), status)
+			if err != nil {
+				return nil, err
+			}
+			if !status.Success {
+				return nil, errors.New(status.Error)
+			}
+			return conn, nil
 		}
 	}
 	return nil, fmt.Errorf("Connection timeout")
@@ -70,10 +92,6 @@ func (ws *WebSocket) Send(data []byte) {
 }
 
 func (ws *WebSocket) Close() {
-	ws.Native.Set("onopen", js.Undefined())
-	ws.Native.Set("onerror", js.Undefined())
-	ws.Native.Set("onclose", js.Undefined())
-
 	wsClose.Invoke(ws.Native)
 
 	// Drain message channel
@@ -136,11 +154,11 @@ func NewWebSocket(url string) *WebSocket {
 			Data: bytes,
 		}
 	})
-	ws.onError = js.NewEventCallback(flags, func(event js.Value) {
-		fmt.Printf("ws.onError: %v\n", event)
+	ws.onError = js.NewCallback(func(args []js.Value) {
+		fmt.Printf("ws.onError: %v\n", args)
 		ws.C <- Message{
 			Type:  Error,
-			Error: fmt.Errorf("WS Error: %s", event),
+			Error: errors.New(args[0].String()),
 		}
 	})
 	ws.onClose = js.NewEventCallback(flags, func(event js.Value) {
@@ -150,11 +168,8 @@ func NewWebSocket(url string) *WebSocket {
 		}
 	})
 
-	ws.Native = wsNew.Invoke(url, ws.onMessage)
-
-	ws.Native.Set("onopen", ws.onOpen)
-	ws.Native.Set("onerror", ws.onError)
-	ws.Native.Set("onclose", ws.onClose)
+	ws.Native = wsNew.Invoke(url, ws.onOpen, ws.onMessage, ws.onError,
+		ws.onClose)
 
 	return ws
 }
