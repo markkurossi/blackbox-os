@@ -14,7 +14,7 @@ function Display(element) {
 }
 
 Display.prototype.measure = function() {
-    var txt = "Sandbox OS 2018!";
+    var txt = "Black Box OS 2018!";
 
     var line = document.createElement('div');
     var span = document.createElement('span');

@@ -19,8 +19,8 @@ import (
 	"net/http"
 
 	"github.com/gorilla/websocket"
-	"github.com/markkurossi/sandbox-os/lib/encoding"
-	"github.com/markkurossi/sandbox-os/lib/wsproxy"
+	"github.com/markkurossi/blackbox-os/lib/encoding"
+	"github.com/markkurossi/blackbox-os/lib/wsproxy"
 )
 
 func main() {

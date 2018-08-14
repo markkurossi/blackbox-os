@@ -14,8 +14,8 @@ import (
 	"syscall/js"
 	"time"
 
-	"github.com/markkurossi/sandbox-os/kernel/fb"
-	"github.com/markkurossi/sandbox-os/kernel/network"
+	"github.com/markkurossi/blackbox-os/kernel/fb"
+	"github.com/markkurossi/blackbox-os/kernel/network"
 )
 
 var console = fb.NewConsole()
@@ -24,7 +24,7 @@ func main() {
 	console.Draw()
 	log.SetOutput(console)
 
-	log.Printf("Sandbox OS")
+	log.Printf("Black Box OS")
 
 	flags := js.PreventDefault | js.StopPropagation
 	onKeyboard := js.NewEventCallback(flags, func(event js.Value) {
