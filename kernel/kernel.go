@@ -14,30 +14,18 @@ import (
 	"syscall/js"
 	"time"
 
-	"github.com/markkurossi/blackbox-os/kernel/fb"
+	"github.com/markkurossi/blackbox-os/kernel/control"
 	"github.com/markkurossi/blackbox-os/kernel/network"
+	"github.com/markkurossi/blackbox-os/kernel/tty"
 )
 
-var console = fb.NewConsole()
+var console = tty.NewConsole()
 
 func main() {
-	console.Draw()
+	console.Flush()
 	log.SetOutput(console)
 
 	log.Printf("Black Box OS")
-
-	flags := js.PreventDefault | js.StopPropagation
-	onKeyboard := js.NewEventCallback(flags, func(event js.Value) {
-		evType := event.Get("type").String()
-		key := event.Get("key").String()
-		keyCode := event.Get("keyCode").Int()
-		ctrlKey := event.Get("ctrlKey").Bool()
-		log.Printf("%s: key=%s, keyCode=%d, ctrlKey=%v\n",
-			evType, key, keyCode, ctrlKey)
-	})
-
-	init := js.Global().Get("init")
-	init.Invoke(onKeyboard)
 
 	conn, err := network.DialTimeout("localhost:2252", 5*time.Second)
 	if err != nil {
@@ -57,7 +45,11 @@ func main() {
 		}()
 	}
 
-	<-time.After(5 * time.Second)
+	for control.HasPower {
+		<-time.After(5 * time.Second)
+		log.Printf("idle\n")
+	}
+	log.Printf("powering down\n")
 	conn.Close()
 
 	if false {

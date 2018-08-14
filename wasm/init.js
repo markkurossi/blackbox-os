@@ -59,6 +59,10 @@ function initJavaScript(displayId) {
         });
 }
 
+function initKeyboard(keyboard) {
+    keyboardHandler = keyboard;
+}
+
 function init(keyboard, mouse, input) {
     keyboardHandler = keyboard;
 }

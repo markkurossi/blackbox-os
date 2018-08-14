@@ -6,18 +6,23 @@
 // All rights reserved.
 //
 
-package fb
+package tty
 
 import (
 	"fmt"
+	"io"
+	"log"
 	"syscall/js"
+
+	"github.com/markkurossi/blackbox-os/kernel/control"
 )
 
 var (
-	getWidth  = js.Global().Get("displayWidth")
-	getHeight = js.Global().Get("displayHeight")
-	clear     = js.Global().Get("displayClear")
-	addLine   = js.Global().Get("displayAddLine")
+	initKeyboard = js.Global().Get("initKeyboard")
+	getWidth     = js.Global().Get("displayWidth")
+	getHeight    = js.Global().Get("displayHeight")
+	clear        = js.Global().Get("displayClear")
+	addLine      = js.Global().Get("displayAddLine")
 )
 
 type RGBA uint32
@@ -42,11 +47,16 @@ type Char struct {
 }
 
 type Console struct {
+	Flags  int
 	Width  int
 	Height int
 	X      int
 	Y      int
 	Lines  [][]Char
+}
+
+func (c *Console) SetFlags(flags int) {
+	c.Flags = flags
 }
 
 func (c *Console) String() string {
@@ -83,7 +93,7 @@ func (c *Console) Clear() {
 	}
 }
 
-func (c *Console) Draw() {
+func (c *Console) Flush() error {
 	clear.Invoke()
 
 	line := make([]uint32, c.Width*3)
@@ -99,6 +109,8 @@ func (c *Console) Draw() {
 		addLine.Invoke(ta)
 	}
 	ta.Release()
+
+	return nil
 }
 
 func (c *Console) MoveTo(x, y int) {
@@ -135,6 +147,11 @@ func (c *Console) ScrollUp(count int) {
 	}
 }
 
+// Read implements the io.Reader interface.
+func (c *Console) Read(p []byte) (int, error) {
+	return 0, io.EOF
+}
+
 // Write implements the io.Writer interface.
 func (c *Console) Write(p []byte) (int, error) {
 	for _, b := range p {
@@ -165,13 +182,36 @@ func (c *Console) Write(p []byte) (int, error) {
 		}
 	}
 
-	c.Draw()
+	c.Flush()
 
 	return len(p), nil
 }
 
-func NewConsole() *Console {
-	c := new(Console)
+func (c *Console) OnKey(evType, key string, keyCode int, ctrl bool) {
+	log.Printf("%s: key=%s, keyCode=%d, ctrlKey=%v\n",
+		evType, key, keyCode, ctrl)
+
+	if key == "F8" {
+		control.Halt()
+	}
+}
+
+func NewConsole() TTY {
+	c := &Console{
+		Flags: ICANON | ECHO,
+	}
+
+	flags := js.PreventDefault | js.StopPropagation
+	onKeyboard := js.NewEventCallback(flags, func(event js.Value) {
+		evType := event.Get("type").String()
+		key := event.Get("key").String()
+		keyCode := event.Get("keyCode").Int()
+		ctrlKey := event.Get("ctrlKey").Bool()
+		c.OnKey(evType, key, keyCode, ctrlKey)
+	})
+
+	initKeyboard.Invoke(onKeyboard)
+
 	c.Resize()
 
 	return c
