@@ -48,8 +48,8 @@ Display.prototype.addLine = function(data) {
     var i;
     var line = new Line();
 
-    for (i = 0; i < data.length; i += 3) {
-        line.add(data[i], data[i + 1], data[i + 2]);
+    for (i = 0; i < data.length; i += 4) {
+        line.add(data[i], data[i + 1], data[i + 2], data[i + 3]);
     }
     line.flush();
 
@@ -61,13 +61,15 @@ function Line() {
     this.txt = '';
     this.fg = 0;
     this.bg = 0;
+    this.flags = 0;
 }
 
-Line.prototype.add = function(code, fg, bg) {
-    if (this.txt.length > 0 && (this.fg != fg || this.bg != bg)) {
+Line.prototype.add = function(code, fg, bg, flags) {
+    if (this.fg != fg || this.bg != bg || this.flags != flags) {
         this.flush();
         this.fg = fg;
         this.bg = bg;
+        this.flags = flags;
     }
     this.txt += String.fromCharCode(code);
 }
@@ -77,7 +79,11 @@ Line.prototype.flush = function() {
         return;
     }
     var span = document.createElement('span');
-    span.appendChild(document.createTextNode(this.txt))
+    if (this.flags != 0) {
+        span.style.backgroundColor = '#aaa';
+    }
+    span.appendChild(document.createTextNode(this.txt));
+
     this.el.appendChild(span)
 
     this.txt = '';

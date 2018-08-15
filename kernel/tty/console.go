@@ -25,6 +25,7 @@ var (
 	getHeight    = js.Global().Get("displayHeight")
 	clear        = js.Global().Get("displayClear")
 	addLine      = js.Global().Get("displayAddLine")
+	debug        = js.Global().Get("debug")
 )
 
 type KeyType int
@@ -117,15 +118,22 @@ func (c *Console) Resize() {
 func (c *Console) Flush() error {
 	clear.Invoke()
 
-	line := make([]uint32, c.emulator.Width*3)
+	line := make([]uint32, c.emulator.Width*4)
 	ta := js.TypedArrayOf(line)
 
 	for i := 0; i < c.emulator.Height; i++ {
 		for j := 0; j < c.emulator.Width; j++ {
 			ch := c.emulator.Lines[i][j]
-			line[j*3] = uint32(ch.Code)
-			line[j*3+1] = uint32(ch.Foreground)
-			line[j*3+2] = uint32(ch.Background)
+			line[j*4] = uint32(ch.Code)
+			line[j*4+1] = uint32(ch.Foreground)
+			line[j*4+2] = uint32(ch.Background)
+
+			var flags = 0
+
+			if j == c.emulator.X && i == c.emulator.Y {
+				flags = 1
+			}
+			line[j*4+3] = uint32(flags)
 		}
 		addLine.Invoke(ta)
 	}
@@ -224,13 +232,21 @@ func (c *Console) OnKeyEvent(evType, key string, keyCode int, ctrl bool) {
 }
 
 func (c *Console) onKey(kt KeyType, code rune) {
+	c.cond.L.Lock()
+
 	if (c.Flags & ICANON) != 0 {
 		if c.qCanon.input(kt, code) {
 			c.cond.Signal()
 		}
+		if (c.Flags & ECHO) != 0 {
+			c.emulator.InsertChar(int(code))
+			c.Flush()
+		}
 	} else {
 		c.inputNonCanonical(kt, code)
 	}
+
+	c.cond.L.Unlock()
 }
 
 func (c *Console) inputCanonical(kt KeyType, code rune) {

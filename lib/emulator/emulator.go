@@ -17,7 +17,7 @@ const (
 
 var (
 	blank = Char{
-		Code:       ' ',
+		Code:       0xa0,
 		Foreground: Black,
 		Background: White,
 	}

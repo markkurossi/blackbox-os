@@ -88,3 +88,7 @@ function displayClear() {
 function displayAddLine(line) {
     display.addLine(line);
 }
+
+function debug(msg) {
+    console.log(msg);
+}

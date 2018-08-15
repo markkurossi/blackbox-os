@@ -47,7 +47,6 @@ func main() {
 
 	for control.HasPower {
 		<-time.After(5 * time.Second)
-		log.Printf("idle\n")
 	}
 	log.Printf("powering down\n")
 	conn.Close()
