@@ -33,7 +33,7 @@ Display.prototype.measure = function() {
 Display.prototype.computeSize = function() {
     var padding = 2 * 10;
     this.widthPx = this.element.offsetWidth - padding;
-    this.heightPx = this.element.offsetHeight - padding;
+    this.heightPx = this.element.offsetHeight;
 
     this.width = parseInt(this.widthPx / this.charWidth);
     this.height = parseInt(this.heightPx / this.charHeight);

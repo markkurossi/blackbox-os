@@ -237,8 +237,7 @@ func (c *Console) onKey(kt KeyType, code rune) {
 	if (c.Flags & ICANON) != 0 {
 		if c.qCanon.input(kt, code) {
 			c.cond.Signal()
-		}
-		if (c.Flags & ECHO) != 0 {
+		} else if (c.Flags & ECHO) != 0 {
 			c.emulator.InsertChar(int(code))
 			c.Flush()
 		}
