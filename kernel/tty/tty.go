@@ -8,13 +8,15 @@
 
 package tty
 
+type TTYFlags uint
+
 const (
-	ICANON int = 1 << iota
+	ICANON TTYFlags = 1 << iota
 	ECHO
 )
 
 type TTY interface {
-	SetFlags(flags int)
+	SetFlags(flags TTYFlags)
 	Read(p []byte) (n int, err error)
 	Write(p []byte) (n int, err error)
 	Flush() error

@@ -29,14 +29,16 @@ function initJavaScript(displayId) {
             keyboardHandler(ev);
         }
     })
-    document.addEventListener('keyup', function(ev) {
-        if (ev.metaKey) {
-            return;
-        }
-        if (keyboardHandler) {
-            keyboardHandler(ev);
-        }
-    })
+    if (false) {
+        document.addEventListener('keyup', function(ev) {
+            if (ev.metaKey) {
+                return;
+            }
+            if (keyboardHandler) {
+                keyboardHandler(ev);
+            }
+        })
+    }
 
     const go = new Go();
     let mod, inst;
