@@ -15,6 +15,7 @@ import (
 )
 
 type Process struct {
+	TTY    tty.TTY
 	Stdin  io.Reader
 	Stdout io.Writer
 	Stderr io.Writer
@@ -22,6 +23,7 @@ type Process struct {
 
 func NewProcess(t tty.TTY) *Process {
 	return &Process{
+		TTY:    t,
 		Stdin:  t,
 		Stdout: t,
 		Stderr: t,
