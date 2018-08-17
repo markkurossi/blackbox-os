@@ -89,6 +89,6 @@ function displayAddLine(line) {
     display.addLine(line);
 }
 
-function debug(msg) {
+function kmsgPrint(msg) {
     console.log(msg);
 }

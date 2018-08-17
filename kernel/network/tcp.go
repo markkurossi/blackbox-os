@@ -64,6 +64,7 @@ func DialTimeout(addr string, timeout time.Duration) (net.Conn, error) {
 				return nil, err
 			}
 			if !status.Success {
+				conn.Close()
 				return nil, errors.New(status.Error)
 			}
 			return conn, nil
@@ -155,7 +156,6 @@ func NewWebSocket(url string) *WebSocket {
 		}
 	})
 	ws.onError = js.NewCallback(func(args []js.Value) {
-		log.Printf("ws.onError: %v\n", args)
 		ws.C <- Message{
 			Type:  Error,
 			Error: errors.New(args[0].String()),
