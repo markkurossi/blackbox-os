@@ -37,6 +37,8 @@ Display.prototype.computeSize = function() {
 
     this.width = parseInt(this.widthPx / this.charWidth);
     this.height = parseInt(this.heightPx / this.charHeight);
+
+    console.log("Display: " + this.width + "x" + this.height);
 }
 
 Display.prototype.clear = function() {

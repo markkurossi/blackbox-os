@@ -100,9 +100,7 @@ func (ws *WebSocket) Close() {
 loop:
 	for {
 		select {
-		case msg := <-ws.C:
-			log.Printf("drain: msg %v\n", msg)
-
+		case <-ws.C:
 		default:
 			break loop
 		}
@@ -122,6 +120,25 @@ type Message struct {
 	Type  MessageType
 	Error error
 	Data  []byte
+}
+
+func (m *Message) String() string {
+	switch m.Type {
+	case Open:
+		return "Open"
+
+	case Error:
+		return fmt.Sprintf("Error=%s", m.Error)
+
+	case Close:
+		return "Close"
+
+	case Data:
+		return fmt.Sprintf("Data=%x", m.Data)
+
+	default:
+		return fmt.Sprintf("{msg %d}", m.Type)
+	}
 }
 
 func NewWebSocket(url string) *WebSocket {

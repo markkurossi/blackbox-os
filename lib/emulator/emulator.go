@@ -32,8 +32,8 @@ type Char struct {
 type Emulator struct {
 	Width  int
 	Height int
-	X      int
-	Y      int
+	Col    int
+	Row    int
 	Lines  [][]Char
 }
 
@@ -67,23 +67,23 @@ func (e *Emulator) Clear() {
 	}
 }
 
-func (e *Emulator) MoveTo(x, y int) {
-	if x < 0 {
-		x = 0
+func (e *Emulator) MoveTo(row, col int) {
+	if col < 0 {
+		col = 0
 	}
-	if x > e.Width {
-		x = e.Width
+	if col > e.Width {
+		col = e.Width
 	}
-	e.X = x
+	e.Col = col
 
-	if y < 0 {
-		y = 0
+	if row < 0 {
+		row = 0
 	}
-	if y >= e.Height {
-		e.ScrollUp(e.Height - y + 1)
-		y = e.Height - 1
+	if row >= e.Height {
+		e.ScrollUp(e.Height - row + 1)
+		row = e.Height - 1
 	}
-	e.Y = y
+	e.Row = row
 }
 
 func (e *Emulator) ScrollUp(count int) {
@@ -102,15 +102,15 @@ func (e *Emulator) ScrollUp(count int) {
 }
 
 func (e *Emulator) InsertChar(code int) {
-	if e.X >= e.Width {
-		e.MoveTo(0, e.Y+1)
+	if e.Col >= e.Width {
+		e.MoveTo(e.Row+1, 0)
 	}
-	e.Lines[e.Y][e.X] = Char{
+	e.Lines[e.Row][e.Col] = Char{
 		Code:       code,
 		Foreground: Black,
 		Background: White,
 	}
-	e.MoveTo(e.X+1, e.Y)
+	e.MoveTo(e.Row, e.Col+1)
 }
 
 func NewEmulator() *Emulator {

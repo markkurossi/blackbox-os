@@ -12,6 +12,7 @@ body {
     padding: 0px 10px;
     background: white;
     font-family: monospace;
+    overflow: hidden;
     font-size: 12pt;
     white-space: pre;
 }

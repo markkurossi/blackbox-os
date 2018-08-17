@@ -62,10 +62,11 @@ const (
 )
 
 type Console struct {
-	Flags    TTYFlags
-	qCanon   *Canonical
-	cond     *sync.Cond
-	emulator *emulator.Emulator
+	Flags     TTYFlags
+	qCanon    *Canonical
+	qNonCanon []byte
+	cond      *sync.Cond
+	emulator  *emulator.Emulator
 }
 
 type Canonical struct {
@@ -141,7 +142,7 @@ func (c *Console) Flush() error {
 
 			var flags = 0
 
-			if j == c.emulator.X && i == c.emulator.Y {
+			if j == c.emulator.Col && i == c.emulator.Row {
 				flags = 1
 			}
 			line[j*4+3] = uint32(flags)
@@ -157,13 +158,21 @@ func (c *Console) Flush() error {
 func (c *Console) Read(p []byte) (int, error) {
 	c.cond.L.Lock()
 
-	// XXX CANON vs !CANON
+	var n int
 
-	for len(c.qCanon.avail) == 0 {
-		c.cond.Wait()
+	if (c.Flags & ICANON) != 0 {
+		for len(c.qCanon.avail) == 0 {
+			c.cond.Wait()
+		}
+		n = copy(p, c.qCanon.avail)
+		c.qCanon.avail = c.qCanon.avail[n:]
+	} else {
+		for len(c.qNonCanon) == 0 {
+			c.cond.Wait()
+		}
+		n = copy(p, c.qNonCanon)
+		c.qNonCanon = c.qNonCanon[n:]
 	}
-	n := copy(p, c.qCanon.avail)
-	c.qCanon.avail = c.qCanon.avail[n:]
 
 	c.cond.L.Unlock()
 
@@ -175,17 +184,17 @@ func (c *Console) Write(p []byte) (int, error) {
 	for _, b := range p {
 		switch b {
 		case '\n':
-			c.emulator.MoveTo(0, c.emulator.Y+1)
+			c.emulator.MoveTo(c.emulator.Row+1, 0)
 
 		case '\r':
-			c.emulator.MoveTo(0, c.emulator.Y)
+			c.emulator.MoveTo(c.emulator.Row, 0)
 
 		case '\t':
-			x := c.emulator.X
-			for (x % 8) != 0 {
-				x++
+			col := c.emulator.Col
+			for (col % 8) != 0 {
+				col++
 			}
-			c.emulator.MoveTo(x, c.emulator.Y)
+			c.emulator.MoveTo(c.emulator.Row, col)
 
 		default:
 			c.emulator.InsertChar(int(b))
@@ -258,29 +267,19 @@ func (c *Console) onKey(kt KeyType, code rune) {
 	c.cond.L.Lock()
 
 	if (c.Flags & ICANON) != 0 {
-		if c.qCanon.input(c.emulator.Y, c.emulator.X, kt, code) {
-			c.emulator.InsertChar('\n')
+		if c.qCanon.input(c.emulator.Row, c.emulator.Col, kt, code) {
+			c.emulator.MoveTo(c.emulator.Row+1, 0)
 			c.cond.Signal()
 		} else if (c.Flags & ECHO) != 0 {
 			c.emulator.InsertChar(int(code))
 			c.Flush()
 		}
 	} else {
-		c.inputNonCanonical(kt, code)
+		c.qNonCanon = append(c.qNonCanon, []byte(string(code))...)
+		c.cond.Signal()
 	}
 
 	c.cond.L.Unlock()
-}
-
-func (c *Console) inputCanonical(kt KeyType, code rune) {
-	if kt == KeyCode {
-		log.Printf("Key %d (%s)", code, string(code))
-	} else {
-		log.Printf("%s\n", kt)
-	}
-}
-func (c *Console) inputNonCanonical(kt KeyType, code rune) {
-	log.Printf("Noncanonical input")
 }
 
 func NewConsole() TTY {
