@@ -9,13 +9,11 @@
 package main
 
 import (
-	"encoding/hex"
+	"fmt"
 	"log"
-	"syscall/js"
-	"time"
 
-	"github.com/markkurossi/blackbox-os/kernel/control"
-	"github.com/markkurossi/blackbox-os/kernel/network"
+	"github.com/markkurossi/blackbox-os/commands/shell"
+	"github.com/markkurossi/blackbox-os/kernel/process"
 	"github.com/markkurossi/blackbox-os/kernel/tty"
 )
 
@@ -25,34 +23,8 @@ func main() {
 	console.Flush()
 	log.SetOutput(console)
 
-	log.Printf("Black Box OS")
+	fmt.Fprintf(console, "Black Box OS\n\n")
+	fmt.Fprintf(console, "Type `help' for list of available commands.\n")
 
-	conn, err := network.DialTimeout("localhost:2252", 5*time.Second)
-	if err != nil {
-		log.Printf("Dial failed: %s\n", err)
-		return
-	}
-	if true {
-		go func() {
-			var buf [1024]byte
-			for {
-				n, err := conn.Read(buf[:])
-				if err != nil {
-					return
-				}
-				log.Printf("conn:\n%s", hex.Dump(buf[:n]))
-			}
-		}()
-	}
-
-	for control.HasPower {
-		<-time.After(5 * time.Second)
-	}
-	log.Printf("powering down\n")
-	conn.Close()
-
-	if false {
-		alert := js.Global().Get("alert")
-		alert.Invoke("Hello, Wasm!")
-	}
+	shell.Shell(process.NewProcess(console))
 }

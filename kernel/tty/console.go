@@ -10,7 +10,6 @@ package tty
 
 import (
 	"fmt"
-	"io"
 	"log"
 	"sync"
 	"syscall/js"
@@ -71,19 +70,20 @@ type Console struct {
 
 type Canonical struct {
 	buf    []rune
-	avail  int
 	cursor int
 	tail   int
+	avail  []byte
+	Region Span
 }
 
-func (in *Canonical) input(kt KeyType, code rune) bool {
+func (in *Canonical) input(row, col int, kt KeyType, code rune) bool {
 	switch kt {
 	case KeyCode:
 		in.append(code)
 		if code == '\n' {
-			in.avail = in.tail
-			in.cursor = in.tail
-			log.Printf("Line: %s", string(in.buf[:in.tail]))
+			in.avail = append(in.avail, []byte(string(in.buf[:in.tail]))...)
+			in.cursor = 0
+			in.tail = 0
 			return true
 		}
 	}
@@ -101,6 +101,17 @@ func NewCanonical() *Canonical {
 	return &Canonical{
 		buf: make([]rune, 1024),
 	}
+}
+
+type Pos struct {
+	Row int
+	Col int
+}
+
+type Span struct {
+	From   Pos
+	To     Pos
+	Cursor Pos
 }
 
 func (c *Console) SetFlags(flags TTYFlags) {
@@ -144,7 +155,19 @@ func (c *Console) Flush() error {
 
 // Read implements the io.Reader interface.
 func (c *Console) Read(p []byte) (int, error) {
-	return 0, io.EOF
+	c.cond.L.Lock()
+
+	// XXX CANON vs !CANON
+
+	for len(c.qCanon.avail) == 0 {
+		c.cond.Wait()
+	}
+	n := copy(p, c.qCanon.avail)
+	c.qCanon.avail = c.qCanon.avail[n:]
+
+	c.cond.L.Unlock()
+
+	return n, nil
 }
 
 // Write implements the io.Writer interface.
@@ -235,7 +258,8 @@ func (c *Console) onKey(kt KeyType, code rune) {
 	c.cond.L.Lock()
 
 	if (c.Flags & ICANON) != 0 {
-		if c.qCanon.input(kt, code) {
+		if c.qCanon.input(c.emulator.Y, c.emulator.X, kt, code) {
+			c.emulator.InsertChar('\n')
 			c.cond.Signal()
 		} else if (c.Flags & ECHO) != 0 {
 			c.emulator.InsertChar(int(code))
