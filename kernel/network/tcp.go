@@ -32,7 +32,9 @@ func DialTimeout(addr string, timeout time.Duration) (net.Conn, error) {
 	url := "ws://localhost:8100/proxy"
 
 	conn := &WSConn{
-		ws: NewWebSocket(url),
+		ws:      NewWebSocket(url),
+		network: "tcp",
+		addr:    addr,
 	}
 
 	// Wait for WebSocket to connect.
@@ -81,6 +83,14 @@ type WebSocket struct {
 	onMessage js.Callback
 	onError   js.Callback
 	onClose   js.Callback
+}
+
+func (ws *WebSocket) Network() string {
+	return "ws"
+}
+
+func (ws *WebSocket) String() string {
+	return ws.URL
 }
 
 func (ws *WebSocket) Send(data []byte) {
@@ -191,8 +201,10 @@ func NewWebSocket(url string) *WebSocket {
 }
 
 type WSConn struct {
-	ws   *WebSocket
-	data []byte
+	ws      *WebSocket
+	network string
+	addr    string
+	data    []byte
 }
 
 func (c *WSConn) Read(b []byte) (n int, err error) {
@@ -233,7 +245,7 @@ func (c *WSConn) Close() error {
 }
 
 func (c *WSConn) LocalAddr() net.Addr {
-	return c
+	return c.ws
 }
 
 func (c *WSConn) RemoteAddr() net.Addr {
@@ -241,11 +253,11 @@ func (c *WSConn) RemoteAddr() net.Addr {
 }
 
 func (c *WSConn) Network() string {
-	return "ws"
+	return c.network
 }
 
 func (c *WSConn) String() string {
-	return c.ws.URL
+	return c.addr
 }
 
 func (c *WSConn) SetDeadline(t time.Time) error {
