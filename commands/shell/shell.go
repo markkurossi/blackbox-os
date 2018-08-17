@@ -52,7 +52,7 @@ func cmd_ssh(p *process.Process, args []string) {
 			for {
 				n, err := conn.Read(buf[:])
 				if err != nil {
-					return
+					break
 				}
 				fmt.Fprintf(p.Stdout, "conn:\n%s", hex.Dump(buf[:n]))
 
