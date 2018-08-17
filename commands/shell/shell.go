@@ -33,7 +33,7 @@ func cmd_help(p *process.Process, args []string) {
 }
 
 func init() {
-	builtin = []Builtin{
+	builtin = append(builtin, []Builtin{
 		Builtin{
 			Name: "alert",
 			Cmd: func(p *process.Process, args []string) {
@@ -55,11 +55,7 @@ func init() {
 			Name: "help",
 			Cmd:  cmd_help,
 		},
-		Builtin{
-			Name: "ssh",
-			Cmd:  cmd_ssh,
-		},
-	}
+	}...)
 }
 
 func readLine(in io.Reader) []string {
