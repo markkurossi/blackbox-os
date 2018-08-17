@@ -77,7 +77,7 @@ func readLine(in io.Reader) []string {
 
 func Shell(p *process.Process) {
 	for control.HasPower {
-		fmt.Fprintf(p.Stdout, "root $ ")
+		fmt.Fprintf(p.Stdout, "bbos $ ")
 		args := readLine(p.Stdin)
 		if len(args) == 0 || len(args[0]) == 0 {
 			continue
