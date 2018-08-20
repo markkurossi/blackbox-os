@@ -9,8 +9,11 @@
 package shell
 
 import (
+	"flag"
 	"fmt"
 	"io"
+	"os"
+	"sort"
 	"strings"
 	"syscall/js"
 
@@ -27,8 +30,15 @@ var builtin []Builtin
 
 func cmd_help(p *process.Process, args []string) {
 	fmt.Fprintf(p.Stdout, "Available commands are:\n")
+
+	names := make([]string, 0, len(builtin))
 	for _, cmd := range builtin {
-		fmt.Fprintf(p.Stdout, "  %s\n", cmd.Name)
+		names = append(names, cmd.Name)
+	}
+	sort.Strings(names)
+
+	for _, name := range names {
+		fmt.Fprintf(p.Stdout, "  %s\n", name)
 	}
 }
 
@@ -76,7 +86,7 @@ func readLine(in io.Reader) []string {
 }
 
 func Shell(p *process.Process) {
-	for control.HasPower {
+	for control.KernelPower != 0 {
 		fmt.Fprintf(p.Stdout, "bbos $ ")
 		args := readLine(p.Stdin)
 		if len(args) == 0 || len(args[0]) == 0 {
@@ -87,8 +97,11 @@ func Shell(p *process.Process) {
 
 		for _, cmd := range builtin {
 			if args[0] == cmd.Name {
-				cmd.Cmd(p, args)
 				found = true
+				os.Args = args
+				flag.CommandLine = flag.NewFlagSet(args[0],
+					flag.ContinueOnError)
+				cmd.Cmd(p, args)
 				break
 			}
 		}

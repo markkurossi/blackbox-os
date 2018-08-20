@@ -28,8 +28,8 @@ var (
 	wsClose = js.Global().Get("webSocketClose")
 )
 
-func DialTimeout(addr string, timeout time.Duration) (net.Conn, error) {
-	url := "ws://localhost:8100/proxy"
+func DialTimeout(proxy, addr string, timeout time.Duration) (net.Conn, error) {
+	url := fmt.Sprintf("ws://%s/proxy", proxy)
 
 	conn := &WSConn{
 		ws:      NewWebSocket(url),
