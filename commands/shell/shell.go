@@ -57,7 +57,6 @@ func init() {
 		Builtin{
 			Name: "halt",
 			Cmd: func(p *process.Process, args []string) {
-				fmt.Fprintf(p.Stdout, "System shutting down...\n")
 				control.Halt()
 			},
 		},

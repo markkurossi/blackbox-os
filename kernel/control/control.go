@@ -10,6 +10,7 @@ package control
 
 import (
 	"fmt"
+	"strconv"
 )
 
 var (
@@ -31,7 +32,26 @@ type Value struct {
 	Intp *int
 }
 
-func (v Value) String() string {
+func (v *Value) Set(value string) error {
+	switch v.Type {
+	case String:
+		*v.Strp = value
+		return nil
+
+	case Int:
+		i, err := strconv.Atoi(value)
+		if err != nil {
+			return fmt.Errorf("invalid integer value '%s': %s", value, err)
+		}
+		*v.Intp = i
+		return nil
+
+	default:
+		return fmt.Errorf("unknown value type %d", v.Type)
+	}
+}
+
+func (v *Value) String() string {
 	switch v.Type {
 	case String:
 		return fmt.Sprintf("%s=%s", v.Name, *v.Strp)
@@ -44,17 +64,35 @@ func (v Value) String() string {
 	}
 }
 
-var Values = []Value{
-	Value{
+var Values = []*Value{
+	&Value{
 		Name: "kernel.power",
 		Type: Int,
 		Intp: &KernelPower,
 	},
-	Value{
+	&Value{
 		Name: "ws.proxy",
 		Type: String,
 		Strp: &WSProxy,
 	},
+}
+
+func Var(name string) (*Value, error) {
+	for _, v := range Values {
+		if v.Name == name {
+			return v, nil
+		}
+	}
+	return nil, fmt.Errorf("unknown oid '%s'", name)
+}
+
+func SetVar(name, value string) error {
+	for _, v := range Values {
+		if v.Name == name {
+			return v.Set(value)
+		}
+	}
+	return fmt.Errorf("unknown oid '%s'", name)
 }
 
 func Halt() {

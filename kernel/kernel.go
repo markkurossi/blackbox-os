@@ -27,4 +27,6 @@ func main() {
 	fmt.Fprintf(console, "Type `help' for list of available commands.\n")
 
 	shell.Shell(process.NewProcess(console))
+
+	fmt.Fprintf(console, "\nSystem shutting down...\n")
 }
