@@ -369,11 +369,11 @@ func (c *Console) onKey(kt KeyType, code rune) {
 	if (c.flags & ICANON) != 0 {
 		if c.qCanon.input(c, c.emulator.Row, c.emulator.Col, kt, code) {
 			c.emulator.MoveTo(c.emulator.Row+1, 0)
-			c.cond.Signal()
+			c.cond.Broadcast()
 		}
 	} else {
 		c.qNonCanon = append(c.qNonCanon, []byte(string(code))...)
-		c.cond.Signal()
+		c.cond.Broadcast()
 	}
 
 	c.cond.L.Unlock()
