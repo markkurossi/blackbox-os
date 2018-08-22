@@ -8,11 +8,14 @@
 
 var keyboardHandler;
 var display;
+var loader;
 
 function initJavaScript(displayId) {
     display = new Display(document.getElementById(displayId));
+    loader = document.getElementById('loader');
 
     console.log("Booting...");
+    loader.style.display = 'block';
 
     if (!WebAssembly.instantiateStreaming) { // polyfill
         WebAssembly.instantiateStreaming = async (resp, importObject) => {
@@ -49,6 +52,7 @@ function initJavaScript(displayId) {
             inst = result.instance;
 
             console.timeEnd("WebAssembly");
+            loader.style.display = 'none';
             async function run() {
                 await go.run(inst);
                 uninit();
