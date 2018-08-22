@@ -16,6 +16,7 @@ const (
 )
 
 type TTY interface {
+	Flags() TTYFlags
 	SetFlags(flags TTYFlags)
 	Read(p []byte) (n int, err error)
 	Write(p []byte) (n int, err error)

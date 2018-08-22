@@ -64,7 +64,7 @@ const (
 )
 
 type Console struct {
-	Flags     TTYFlags
+	flags     TTYFlags
 	qCanon    *Canonical
 	qNonCanon []byte
 	cond      *sync.Cond
@@ -221,8 +221,12 @@ type Span struct {
 	Cursor Pos
 }
 
+func (c *Console) Flags() TTYFlags {
+	return c.flags
+}
+
 func (c *Console) SetFlags(flags TTYFlags) {
-	c.Flags = flags
+	c.flags = flags
 }
 
 func (c *Console) String() string {
@@ -266,7 +270,7 @@ func (c *Console) Read(p []byte) (int, error) {
 
 	var n int
 
-	if (c.Flags & ICANON) != 0 {
+	if (c.flags & ICANON) != 0 {
 		for len(c.qCanon.avail) == 0 {
 			c.cond.Wait()
 		}
@@ -362,7 +366,7 @@ func (c *Console) OnKeyEvent(evType, key string, keyCode int, ctrl bool) {
 func (c *Console) onKey(kt KeyType, code rune) {
 	c.cond.L.Lock()
 
-	if (c.Flags & ICANON) != 0 {
+	if (c.flags & ICANON) != 0 {
 		if c.qCanon.input(c, c.emulator.Row, c.emulator.Col, kt, code) {
 			c.emulator.MoveTo(c.emulator.Row+1, 0)
 			c.cond.Signal()
@@ -376,7 +380,7 @@ func (c *Console) onKey(kt KeyType, code rune) {
 }
 
 func (c *Console) Echo(code []int) {
-	if (c.Flags & ECHO) != 0 {
+	if (c.flags & ECHO) != 0 {
 		for _, co := range code {
 			c.emulator.Input(co)
 		}
@@ -386,7 +390,7 @@ func (c *Console) Echo(code []int) {
 
 func NewConsole() TTY {
 	c := &Console{
-		Flags:    ICANON | ECHO,
+		flags:    ICANON | ECHO,
 		qCanon:   NewCanonical(),
 		cond:     sync.NewCond(new(sync.Mutex)),
 		emulator: emulator.NewEmulator(),
