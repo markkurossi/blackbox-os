@@ -67,7 +67,7 @@ func init() {
 	}...)
 }
 
-func readLine(in io.Reader) []string {
+func readLine(in io.Reader) string {
 	var buf [1024]byte
 	var line string
 
@@ -81,13 +81,14 @@ func readLine(in io.Reader) []string {
 			break
 		}
 	}
-	return strings.Split(strings.TrimSpace(line), " ")
+	return strings.TrimSpace(line)
 }
 
 func Shell(p *process.Process) {
 	for control.KernelPower != 0 {
 		fmt.Fprintf(p.Stdout, "bbos $ ")
-		args := readLine(p.Stdin)
+		line := readLine(p.Stdin)
+		args := strings.Split(line, " ")
 		if len(args) == 0 || len(args[0]) == 0 {
 			continue
 		}
