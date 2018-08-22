@@ -8,6 +8,12 @@
 
 package emulator
 
+import (
+	"fmt"
+
+	"github.com/markkurossi/blackbox-os/kernel/kmsg"
+)
+
 type RGBA uint32
 
 const (
@@ -29,12 +35,124 @@ type Char struct {
 	Background RGBA
 }
 
+type Action func(e *Emulator, state *State, ch int)
+
+func actError(e *Emulator, state *State, ch int) {
+	kmsg.Print(fmt.Sprintf("Emulator error: state=%s, ch=0x%x\n", state, ch))
+	e.state = stStart
+}
+
+func actInsertChar(e *Emulator, state *State, ch int) {
+	e.InsertChar(ch)
+}
+
+func actC0Control(e *Emulator, state *State, ch int) {
+	switch ch {
+	case 0x0a: // Linefeed
+		e.MoveTo(e.Row+1, e.Col)
+	case 0x0d: // Carriage Return
+		e.MoveTo(e.Row, 0)
+	case 0x08: // BS
+		e.MoveTo(e.Row, e.Col-1)
+
+	default:
+		kmsg.Print(fmt.Sprintf("actC0Control: %s: %x\n", state, ch))
+	}
+}
+
+func actCSI(e *Emulator, state *State, ch int) {
+	switch ch {
+	case 'C':
+		e.MoveTo(e.Row, e.Col+1)
+	case 'K':
+		// XXX intermediate 0, 1, 2
+		e.ClearLine(e.Row, e.Col, e.Width)
+	case 'P':
+		// XXX intermediate: how many characters to delete
+		e.DeleteChars(e.Row, e.Col, 1)
+	default:
+		kmsg.Print(fmt.Sprintf("actCSI: %s: %x\n", state, ch))
+	}
+}
+
+type Transition struct {
+	Action Action
+	Next   *State
+}
+
+type State struct {
+	Name        string
+	Default     Action
+	Transitions map[int]*Transition
+}
+
+func (s *State) String() string {
+	return s.Name
+}
+
+func (s *State) AddActions(from, to int, act Action, next *State) {
+	transition := &Transition{
+		Action: act,
+		Next:   next,
+	}
+
+	for ; from <= to; from++ {
+		s.Transitions[from] = transition
+	}
+}
+
+func (s *State) Input(e *Emulator, code int) *State {
+	var act Action
+	var next *State
+
+	transition, ok := s.Transitions[code]
+	if ok {
+		act = transition.Action
+		next = transition.Next
+	} else {
+		act = s.Default
+	}
+
+	if act != nil {
+		act(e, s, code)
+	}
+
+	return next
+}
+
+func NewState(name string, def Action) *State {
+	return &State{
+		Name:        name,
+		Default:     def,
+		Transitions: make(map[int]*Transition),
+	}
+}
+
+var (
+	stStart  = NewState("start", actInsertChar)
+	stESC    = NewState("ESC", actError)
+	stCSI    = NewState("CSI", actError)
+	stESCSeq = NewState("ESCSeq", actError)
+	stOSC    *State
+)
+
+func init() {
+	stStart.AddActions(0x00, 0x1f, actC0Control, nil)
+	stStart.AddActions(0x9b, 0x9b, nil, stCSI)
+	stStart.AddActions(0x1b, 0x1b, nil, stESC)
+
+	stESC.AddActions('[', '[', nil, stCSI)
+
+	stCSI.AddActions(0x40, 0x7e, actCSI, stStart)
+}
+
 type Emulator struct {
 	Width  int
 	Height int
 	Col    int
 	Row    int
 	Lines  [][]Char
+	state  *State
 }
 
 func (e *Emulator) Resize(width, height int) {
@@ -52,18 +170,18 @@ func (e *Emulator) Resize(width, height int) {
 	e.Lines = lines
 }
 
-func (e *Emulator) ClearLine(line int) {
+func (e *Emulator) ClearLine(line, from, to int) {
 	if line < 0 || line >= e.Height {
 		return
 	}
-	for i := 0; i < e.Width; i++ {
+	for i := from; i < to; i++ {
 		e.Lines[line][i] = blank
 	}
 }
 
 func (e *Emulator) Clear() {
 	for i := 0; i < e.Height; i++ {
-		e.ClearLine(i)
+		e.ClearLine(i, 0, e.Width)
 	}
 }
 
@@ -97,13 +215,18 @@ func (e *Emulator) ScrollUp(count int) {
 		e.Lines = append(e.Lines[1:], saved)
 	}
 	for i := 0; i < count; i++ {
-		e.ClearLine(e.Height - 1 - i)
+		e.ClearLine(e.Height-1-i, 0, e.Width)
 	}
 }
 
 func (e *Emulator) InsertChar(code int) {
 	if e.Col >= e.Width {
-		e.MoveTo(e.Row+1, 0)
+		if e.Row+1 >= e.Height {
+			e.ScrollUp(1)
+			e.MoveTo(e.Row, 0)
+		} else {
+			e.MoveTo(e.Row+1, 0)
+		}
 	}
 	e.Lines[e.Row][e.Col] = Char{
 		Code:       code,
@@ -113,6 +236,29 @@ func (e *Emulator) InsertChar(code int) {
 	e.MoveTo(e.Row, e.Col+1)
 }
 
+func (e *Emulator) DeleteChars(row, col, count int) {
+	r := e.Lines[e.Row]
+
+	for x := col; x < e.Width; x++ {
+		if x+count < e.Width {
+			r[x] = r[x+count]
+		} else {
+			r[x] = blank
+		}
+	}
+}
+
+func (e *Emulator) Input(code int) {
+	// kmsg.Print(fmt.Sprintf("Emulator.Input: %s<-0x%x", e.state, code))
+	next := e.state.Input(e, code)
+	if next != nil {
+		// kmsg.Print(fmt.Sprintf("Emulator: %s->%s", e.state, next))
+		e.state = next
+	}
+}
+
 func NewEmulator() *Emulator {
-	return new(Emulator)
+	return &Emulator{
+		state: stStart,
+	}
 }

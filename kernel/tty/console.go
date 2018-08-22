@@ -9,12 +9,14 @@
 package tty
 
 import (
+	"encoding/hex"
 	"fmt"
 	"log"
 	"sync"
 	"syscall/js"
 
 	"github.com/markkurossi/blackbox-os/kernel/control"
+	"github.com/markkurossi/blackbox-os/kernel/kmsg"
 	"github.com/markkurossi/blackbox-os/lib/emulator"
 )
 
@@ -69,6 +71,8 @@ type Console struct {
 	emulator  *emulator.Emulator
 }
 
+// Canonical provides canonical input mode with Emacs-like line
+// editing capabilities.
 type Canonical struct {
 	buf    []rune
 	cursor int
@@ -77,24 +81,126 @@ type Canonical struct {
 	Region Span
 }
 
-func (in *Canonical) input(row, col int, kt KeyType, code rune) bool {
+func (in *Canonical) input(c *Console, row, col int,
+	kt KeyType, code rune) bool {
+
 	switch kt {
 	case KeyCode:
-		in.append(code)
-		if code == '\n' {
-			in.avail = append(in.avail, []byte(string(in.buf[:in.tail]))...)
-			in.cursor = 0
-			in.tail = 0
-			return true
+		kmsg.Print(fmt.Sprintf("input(KeyCode, 0x%x)\n", code))
+		switch code {
+		case 0x01: // C-a
+			for in.cursor > 0 {
+				c.Echo([]int{0x08})
+				in.cursor--
+			}
+
+		case 0x02: // C-b
+			in.cursorLeft(c)
+
+		case 0x04: // C-d
+			if in.cursor == in.tail {
+				break
+			}
+			c.Echo([]int{0x1b, '[', 'P'})
+			in.cursor++
+			in.delete()
+
+		case 0x05: // C-e
+			for in.cursor < in.tail {
+				c.Echo([]int{0x1b, '[', 'C'})
+				in.cursor++
+			}
+
+		case 0x06: // C-f
+			in.cursorRight(c)
+
+		case 0x0b: // C-k
+			in.tail = in.cursor
+			c.Echo([]int{0x1b, '[', 'K'})
+
+		case 0x7f: // Delete
+			if in.cursor == 0 {
+				break
+			}
+
+			c.Echo([]int{0x08}) // Backspace
+			if in.cursor == in.tail {
+				c.Echo([]int{0x1b, '[', 'K'}) // Erase line from cursor
+			} else {
+				c.Echo([]int{0x1b, '[', 'P'}) // Delete character
+			}
+
+			in.delete()
+
+		default:
+			if code == '\n' {
+				in.avail = append(in.avail, []byte(string(in.buf[:in.tail]))...)
+				in.avail = append(in.avail, '\n')
+				in.cursor = 0
+				in.tail = 0
+				return true
+			}
+			// XXX insert char only if printable
+			if in.insert(code) {
+				// Print line.
+				for i := in.cursor - 1; i < in.tail; i++ {
+					c.Echo([]int{int(in.buf[i])})
+				}
+				// And move cursor back to its position.
+				for i := in.tail; i > in.cursor; i-- {
+					c.Echo([]int{0x08})
+				}
+			}
 		}
+
+	case KeyCursorLeft:
+		in.cursorLeft(c)
+
+	case KeyCursorRight:
+		in.cursorRight(c)
 	}
 	return false
 }
 
-func (in *Canonical) append(ch rune) {
-	if in.tail < len(in.buf) {
-		in.buf[in.tail] = ch
-		in.tail++
+func (in *Canonical) cursorLeft(c *Console) {
+	if in.cursor > 0 {
+		c.Echo([]int{0x08})
+		in.cursor--
+	}
+}
+
+func (in *Canonical) cursorRight(c *Console) {
+	if in.cursor < in.tail {
+		c.Echo([]int{0x1b, '[', 'C'})
+		in.cursor++
+	}
+}
+
+func (in *Canonical) insert(ch rune) bool {
+	if in.tail >= len(in.buf) {
+		return false
+	}
+
+	if in.cursor < in.tail {
+		for i := in.tail + 1; i > in.cursor; i-- {
+			in.buf[i] = in.buf[i-1]
+		}
+	}
+	in.buf[in.cursor] = ch
+
+	in.cursor++
+	in.tail++
+
+	return true
+}
+
+func (in *Canonical) delete() {
+	if in.cursor == in.tail {
+		in.cursor--
+		in.tail--
+	} else {
+		in.cursor--
+		in.buf = append(in.buf[0:in.cursor], in.buf[in.cursor+1:]...)
 	}
 }
 
@@ -181,24 +287,14 @@ func (c *Console) Read(p []byte) (int, error) {
 
 // Write implements the io.Writer interface.
 func (c *Console) Write(p []byte) (int, error) {
+	kmsg.Print(fmt.Sprintf("Console.Write:\n%s", hex.Dump(p)))
+	var last byte
 	for _, b := range p {
-		switch b {
-		case '\n':
-			c.emulator.MoveTo(c.emulator.Row+1, 0)
-
-		case '\r':
-			c.emulator.MoveTo(c.emulator.Row, 0)
-
-		case '\t':
-			col := c.emulator.Col
-			for (col % 8) != 0 {
-				col++
-			}
-			c.emulator.MoveTo(c.emulator.Row, col)
-
-		default:
-			c.emulator.InsertChar(int(b))
+		if b == '\n' && last != '\r' {
+			c.emulator.Input('\r')
 		}
+		c.emulator.Input(int(b))
+		last = b
 	}
 
 	c.Flush()
@@ -267,12 +363,9 @@ func (c *Console) onKey(kt KeyType, code rune) {
 	c.cond.L.Lock()
 
 	if (c.Flags & ICANON) != 0 {
-		if c.qCanon.input(c.emulator.Row, c.emulator.Col, kt, code) {
+		if c.qCanon.input(c, c.emulator.Row, c.emulator.Col, kt, code) {
 			c.emulator.MoveTo(c.emulator.Row+1, 0)
 			c.cond.Signal()
-		} else if (c.Flags & ECHO) != 0 {
-			c.emulator.InsertChar(int(code))
-			c.Flush()
 		}
 	} else {
 		c.qNonCanon = append(c.qNonCanon, []byte(string(code))...)
@@ -280,6 +373,15 @@ func (c *Console) onKey(kt KeyType, code rune) {
 	}
 
 	c.cond.L.Unlock()
+}
+
+func (c *Console) Echo(code []int) {
+	if (c.Flags & ECHO) != 0 {
+		for _, co := range code {
+			c.emulator.Input(co)
+		}
+		c.Flush()
+	}
 }
 
 func NewConsole() TTY {
