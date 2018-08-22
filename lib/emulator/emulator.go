@@ -48,6 +48,11 @@ func actInsertChar(e *Emulator, state *State, ch int) {
 
 func actC0Control(e *Emulator, state *State, ch int) {
 	switch ch {
+	case 0x09: // Horizontal Tabulation.
+		var x = e.Col + 1
+		for ; x%8 != 0; x++ {
+		}
+		e.MoveTo(e.Row, x)
 	case 0x0a: // Linefeed
 		e.MoveTo(e.Row+1, e.Col)
 	case 0x0d: // Carriage Return
