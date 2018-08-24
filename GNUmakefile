@@ -1,4 +1,4 @@
-GO1.11 := $(HOME)/work/go/bin/go1.11beta2
+GO1.11 := $(HOME)/work/go/bin/go1.11rc2
 ALL_TARGETS := wasm/kernel.wasm httpd/httpd
 PUBLIC := mrossi@isle-of-wight.dreamhost.com:markkurossi.com/blackbox-os/
 

@@ -96,3 +96,16 @@ function webSocketSend(ws, data) {
 function webSocketClose(ws) {
     ws.close();
 }
+
+function reqListener () {
+    console.log(this.responseText);
+}
+
+function httpGet(url) {
+    var oReq = new XMLHttpRequest();
+    oReq.addEventListener("load", reqListener);
+    oReq.addEventListener("error", reqListener);
+    oReq.addEventListener("close", reqListener);
+    oReq.open("GET", url);
+    oReq.send();
+}
