@@ -29,16 +29,40 @@ type Process struct {
 	FS     *FS
 }
 
-func NewProcess(t tty.TTY, z *zone.Zone) *Process {
+func NewProcess(t tty.TTY, z *zone.Zone) (*Process, error) {
+	fs, err := NewFS(z)
+	if err != nil {
+		return nil, err
+	}
 	return &Process{
 		TTY:    t,
 		Stdin:  t,
 		Stdout: t,
 		Stderr: t,
-		FS: &FS{
-			Zone: z,
-		},
+		FS:     fs,
+	}, nil
+}
+
+func NewFS(z *zone.Zone) (*FS, error) {
+	fs := &FS{
+		Zone: z,
 	}
+	// Find snapshot root.
+	element, err := tree.DeserializeID(z.HeadID, z)
+	if err != nil {
+		// Empty filesystem.
+		return nil, err
+	}
+	el, ok := element.(*tree.Snapshot)
+	if !ok {
+		return nil, fmt.Errorf("Invalid filesystem root directory: %T", element)
+	}
+	fs.WD = append(fs.WD, WDEntry{
+		ID:   el.Root,
+		Name: "",
+	})
+
+	return fs, nil
 }
 
 type FS struct {

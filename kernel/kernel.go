@@ -55,7 +55,12 @@ func main() {
 	fmt.Fprintf(console, "Black Box OS\n\n")
 	fmt.Fprintf(console, "Type `help' for list of available commands.\n")
 
-	shell.Shell(process.NewProcess(console, Zone))
+	process, err := process.NewProcess(console, Zone)
+	if err != nil {
+		fmt.Fprintf(console, "Failed to create init process: %s\n", err)
+	} else {
+		shell.Shell(process)
+	}
 
 	fmt.Fprintf(console, "\nSystem shutting down...\n")
 }

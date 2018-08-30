@@ -36,7 +36,16 @@ func cmd_pwd(p *process.Process, args []string) {
 
 func cmd_ls(p *process.Process, args []string) {
 	long := flag.Bool("l", false, "List in long format.")
+	snapshot := flag.Bool("s", false, "List snapshots.")
 	flag.Parse()
+
+	if *snapshot {
+		err := listSnapshots(p)
+		if err != nil {
+			fmt.Fprintf(p.Stderr, "ls: %s\n", err)
+		}
+		return
+	}
 
 	id, err := p.FS.PWD()
 	if err != nil {
@@ -60,6 +69,29 @@ func cmd_ls(p *process.Process, args []string) {
 	default:
 		fmt.Fprintf(p.Stderr, "Invalid working directory: %T\n", el)
 	}
+}
+
+func listSnapshots(p *process.Process) error {
+	root := p.FS.Zone.HeadID
+
+	for !root.Undefined() {
+		element, err := tree.DeserializeID(root, p.FS.Zone)
+		if err != nil {
+			return err
+		}
+		el, ok := element.(*tree.Snapshot)
+		if !ok {
+			return fmt.Errorf("Invalid snapshot element: %T\n", element)
+		}
+		selected := " "
+		if el.Root.Equal(p.FS.WD[0].ID) {
+			selected = "*"
+		}
+		fmt.Fprintf(p.Stdout, "%s%s\t%s\n", selected, el.Root,
+			time.Unix(0, el.Timestamp))
+		root = el.Parent
+	}
+	return nil
 }
 
 func listDirShort(p *process.Process, el *tree.Directory) {
