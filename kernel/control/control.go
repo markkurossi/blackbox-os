@@ -16,6 +16,8 @@ import (
 var (
 	KernelPower int    = 1
 	WSProxy     string = "localhost:8100"
+	FSRoot      string = fmt.Sprintf("http://%s/fs/.backup", WSProxy)
+	FSZone      string = "default"
 )
 
 type ValueType int
@@ -74,6 +76,16 @@ var Values = []*Value{
 		Name: "ws.proxy",
 		Type: String,
 		Strp: &WSProxy,
+	},
+	&Value{
+		Name: "fs.root",
+		Type: String,
+		Strp: &FSRoot,
+	},
+	&Value{
+		Name: "fs.zone",
+		Type: String,
+		Strp: &FSZone,
 	},
 }
 
