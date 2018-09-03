@@ -84,5 +84,5 @@ func parseParams() {
 	url.RawQuery = ""
 	url.Fragment = ""
 
-	control.FSRoot = fmt.Sprintf("%s/fs", url)
+	control.FSRoot = fmt.Sprintf("%sfs", url)
 }
