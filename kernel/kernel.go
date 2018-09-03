@@ -11,6 +11,8 @@ package main
 import (
 	"fmt"
 	"log"
+	"net/url"
+	"syscall/js"
 
 	"github.com/markkurossi/backup/lib/crypto/identity"
 	"github.com/markkurossi/backup/lib/crypto/zone"
@@ -22,16 +24,24 @@ import (
 )
 
 var (
-	console = tty.NewConsole()
-	IDs     []identity.PrivateKey
-	FS      persistence.Accessor
-	Zone    *zone.Zone
+	console     = tty.NewConsole()
+	IDs         []identity.PrivateKey
+	FS          persistence.Accessor
+	Zone        *zone.Zone
+	locationURL = js.Global().Get("location").Get("href").String()
 )
 
 func main() {
+	parseParams()
+
 	console.Flush()
 	log.SetOutput(console)
+	runInit()
 
+	fmt.Fprintf(console, "\nSystem halted.\n")
+}
+
+func runInit() {
 	// Load identities.
 	id, err := identity.GetNull()
 	if err != nil {
@@ -43,13 +53,15 @@ func main() {
 	// Init filesystem.
 	FS, err = persistence.NewHTTP(control.FSRoot)
 	if err != nil {
-		fmt.Fprintf(console, "Failed to mount filesystem '%s': %s",
+		fmt.Fprintf(console, "Failed to mount filesystem '%s': %s\n",
 			control.FSRoot, err)
+		return
 	}
 	Zone, err = zone.Open(FS, control.FSZone, IDs)
 	if err != nil {
-		fmt.Fprintf(console, "Failed to open filesystem zone '%s': %s",
+		fmt.Fprintf(console, "Failed to open filesystem zone '%s': %s\n",
 			control.FSZone, err)
+		return
 	}
 
 	fmt.Fprintf(console, "Black Box OS\n\n")
@@ -61,6 +73,16 @@ func main() {
 	} else {
 		shell.Shell(process)
 	}
+}
 
-	fmt.Fprintf(console, "\nSystem shutting down...\n")
+func parseParams() {
+	url, err := url.Parse(locationURL)
+	if err != nil {
+		fmt.Fprintf(console, "Failed to parse location URL '%s': %s\n",
+			locationURL, err)
+	}
+	url.RawQuery = ""
+	url.Fragment = ""
+
+	control.FSRoot = fmt.Sprintf("%s/fs", url)
 }

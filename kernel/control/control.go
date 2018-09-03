@@ -16,7 +16,7 @@ import (
 var (
 	KernelPower int    = 1
 	WSProxy     string = "localhost:8100"
-	FSRoot      string = fmt.Sprintf("http://%s/fs/.backup", WSProxy)
+	FSRoot      string = fmt.Sprintf("http://%s/fs", WSProxy)
 	FSZone      string = "default"
 )
 

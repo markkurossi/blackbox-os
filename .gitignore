@@ -13,3 +13,5 @@
 
 httpd/httpd
 *.wasm
+wasm/fs
+.backup
