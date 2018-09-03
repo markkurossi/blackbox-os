@@ -54,6 +54,7 @@ func DialTimeout(proxy, addr string, timeout time.Duration) (net.Conn, error) {
 			conn.Write(data)
 
 		case Error:
+			conn.Close()
 			return nil, msg.Error
 
 		case Close:
