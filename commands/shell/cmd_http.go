@@ -24,11 +24,12 @@ func init() {
 }
 
 func cmd_http(p *process.Process, args []string) {
-	method := flag.String("m", "GET", "HTTP method to use (default is GET).")
+	method := flag.String("m", "GET", "HTTP method to use.")
+	noCORS := flag.Bool("C", false, "Set the `no-cors' request mode.")
 	flag.Parse()
 
 	if len(flag.Args()) == 0 {
-		fmt.Fprintf(p.Stderr, "usage: %s OPTIONS... URL\n")
+		fmt.Fprintf(p.Stderr, "usage: no URLs specified\n")
 		return
 	}
 
@@ -39,7 +40,9 @@ func cmd_http(p *process.Process, args []string) {
 			fmt.Fprintf(p.Stderr, "%s %s: %s\n", *method, url, err)
 			return
 		}
-		// req.Header.Add("js.fetch:mode", "no-cors")
+		if *noCORS {
+			req.Header.Add("js.fetch:mode", "no-cors")
+		}
 
 		resp, err := client.Do(req)
 		if err != nil {

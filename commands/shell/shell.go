@@ -101,6 +101,7 @@ func Shell(p *process.Process) {
 				os.Args = args
 				flag.CommandLine = flag.NewFlagSet(args[0],
 					flag.ContinueOnError)
+				flag.CommandLine.SetOutput(p.Stdout)
 				cmd.Cmd(p, args)
 				break
 			}
