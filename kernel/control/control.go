@@ -18,6 +18,7 @@ var (
 	WSProxy     string = "localhost:8100"
 	FSRoot      string = fmt.Sprintf("http://%s/fs", WSProxy)
 	FSZone      string = "default"
+	ShellPrompt string = "bbos \\W $ "
 )
 
 type ValueType int
@@ -86,6 +87,11 @@ var Values = []*Value{
 		Name: "fs.zone",
 		Type: String,
 		Strp: &FSZone,
+	},
+	&Value{
+		Name: "shell.prompt",
+		Type: String,
+		Strp: &ShellPrompt,
 	},
 }
 

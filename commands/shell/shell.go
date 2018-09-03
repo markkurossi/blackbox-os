@@ -19,6 +19,7 @@ import (
 
 	"github.com/markkurossi/blackbox-os/kernel/control"
 	"github.com/markkurossi/blackbox-os/kernel/process"
+	"github.com/markkurossi/blackbox-os/lib/file"
 )
 
 type Builtin struct {
@@ -86,7 +87,7 @@ func readLine(in io.Reader) string {
 
 func Shell(p *process.Process) {
 	for control.KernelPower != 0 {
-		fmt.Fprintf(p.Stdout, "bbos $ ")
+		fmt.Fprintf(p.Stdout, prompt(p))
 		line := readLine(p.Stdin)
 		args := strings.Split(line, " ")
 		if len(args) == 0 || len(args[0]) == 0 {
@@ -110,4 +111,45 @@ func Shell(p *process.Process) {
 			fmt.Fprintf(p.Stderr, "Unknown command '%s'\n", args[0])
 		}
 	}
+}
+
+func prompt(p *process.Process) string {
+	var result []rune
+
+	prompt := []rune(control.ShellPrompt)
+
+	for i := 0; i < len(prompt); i++ {
+		switch prompt[i] {
+		case '\\':
+			if i+1 < len(prompt) {
+				i++
+				switch prompt[i] {
+				case 'W':
+					dir := "{nodir}"
+
+					wd, _, err := p.WD()
+					if err == nil {
+						parts := file.PathSplit(wd)
+						if len(parts) > 0 {
+							last := parts[len(parts)-1]
+							if len(last) == 0 {
+								dir = "/"
+							} else {
+								dir = last
+							}
+						}
+					}
+					result = append(result, []rune(dir)...)
+
+				default:
+					result = append(result, prompt[i])
+				}
+			}
+
+		default:
+			result = append(result, prompt[i])
+		}
+	}
+
+	return string(result)
 }
