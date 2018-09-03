@@ -11,15 +11,13 @@ package process
 import (
 	"fmt"
 	"io"
-	"regexp"
 
 	"github.com/markkurossi/backup/lib/crypto/zone"
 	"github.com/markkurossi/backup/lib/storage"
 	"github.com/markkurossi/backup/lib/tree"
 	"github.com/markkurossi/blackbox-os/kernel/tty"
+	"github.com/markkurossi/blackbox-os/lib/file"
 )
-
-var rePathEscape = regexp.MustCompilePOSIX("(['\"\\\\])")
 
 type Process struct {
 	TTY    tty.TTY
@@ -27,6 +25,77 @@ type Process struct {
 	Stdout io.Writer
 	Stderr io.Writer
 	FS     *FS
+}
+
+func (p *Process) WD() (str string, id storage.ID, err error) {
+	str = "/"
+	for _, e := range p.FS.WD {
+		if len(e.Name) > 0 {
+			if str[len(str)-1] != '/' {
+				str += "/"
+			}
+			str += e.String()
+		}
+	}
+
+	if len(p.FS.WD) > 0 {
+		id = p.FS.WD[len(p.FS.WD)-1].ID
+		return
+	}
+
+	var element tree.Element
+
+	element, err = tree.DeserializeID(p.FS.Zone.HeadID, p.FS.Zone)
+	if err != nil {
+		return
+	}
+
+	el, ok := element.(*tree.Snapshot)
+	if !ok {
+		err = fmt.Errorf("Invalid root directory: %T", element)
+		return
+	}
+	id = el.Root
+	return
+}
+
+func (p *Process) SetWD(path string) error {
+	if len(path) == 0 {
+		return fmt.Errorf("Invalid path '%s'", path)
+	}
+	parts := file.PathSplit(path)
+
+	var wd []WDEntry
+	if len(parts[0]) == 0 {
+		// Absolute path starting from the root.
+		wd = p.FS.WD[:1]
+	} else {
+		// Relative path starting from the current working directory.
+		wd = p.FS.WD
+	}
+
+	for _, part := range parts {
+		switch part {
+		case ".", "":
+			// Stay at the current directory.
+
+		case "..":
+			// Move to parent.
+			if len(wd) > 1 {
+				wd = wd[0 : len(wd)-1]
+			}
+
+		default:
+			// Resolve sub-directory.
+			entry, err := p.FS.LookupDir(wd, part)
+			if err != nil {
+				return err
+			}
+			wd = append(wd, *entry)
+		}
+	}
+	p.FS.WD = wd
+	return nil
 }
 
 func NewProcess(t tty.TTY, z *zone.Zone) (*Process, error) {
@@ -70,36 +139,28 @@ type FS struct {
 	WD   []WDEntry
 }
 
-func (fs *FS) PWD() (storage.ID, error) {
-	if len(fs.WD) > 0 {
-		return fs.WD[len(fs.WD)-1].ID, nil
+func (fs *FS) LookupDir(wd []WDEntry, name string) (*WDEntry, error) {
+	if len(wd) == 0 {
+		return nil, fmt.Errorf("No current working directory")
 	}
-
-	element, err := tree.DeserializeID(fs.Zone.HeadID, fs.Zone)
+	element, err := tree.DeserializeID(wd[len(wd)-1].ID, fs.Zone)
 	if err != nil {
-		return storage.EmptyID, err
+		return nil, err
 	}
-
-	el, ok := element.(*tree.Snapshot)
+	el, ok := element.(*tree.Directory)
 	if !ok {
-		return storage.EmptyID, fmt.Errorf("Invalid root directory: %T",
-			element)
+		return nil, fmt.Errorf("Invalid current working directory: %T", element)
 	}
-
-	return el.Root, nil
-}
-
-func (fs *FS) PWDString() string {
-	str := "/"
-
-	for idx, e := range fs.WD {
-		if idx > 0 {
-			str += "/"
+	for _, e := range el.Entries {
+		if name == e.Name {
+			return &WDEntry{
+				ID:   e.Entry,
+				Name: e.Name,
+			}, nil
 		}
-		str += e.String()
 	}
 
-	return str
+	return nil, fmt.Errorf("No such directory '%s'", name)
 }
 
 type WDEntry struct {
@@ -108,5 +169,5 @@ type WDEntry struct {
 }
 
 func (wd WDEntry) String() string {
-	return rePathEscape.ReplaceAllString(wd.Name, "\\${1}")
+	return file.PathEscape(wd.Name)
 }

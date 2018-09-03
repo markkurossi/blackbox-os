@@ -24,6 +24,10 @@ func init() {
 			Cmd:  cmd_pwd,
 		},
 		Builtin{
+			Name: "cd",
+			Cmd:  cmd_cd,
+		},
+		Builtin{
 			Name: "ls",
 			Cmd:  cmd_ls,
 		},
@@ -31,7 +35,24 @@ func init() {
 }
 
 func cmd_pwd(p *process.Process, args []string) {
-	fmt.Fprintf(p.Stdout, "%s\n", p.FS.PWDString())
+	str, _, err := p.WD()
+	if err != nil {
+		fmt.Fprintf(p.Stderr, "pwd: %s\n", err)
+	} else {
+		fmt.Fprintf(p.Stdout, "%s\n", str)
+	}
+}
+
+func cmd_cd(p *process.Process, args []string) {
+	var err error
+	if len(args) < 2 {
+		err = p.SetWD("/")
+	} else {
+		err = p.SetWD(args[1])
+	}
+	if err != nil {
+		fmt.Fprintf(p.Stderr, "chdir: %s\n", err)
+	}
 }
 
 func cmd_ls(p *process.Process, args []string) {
@@ -47,7 +68,7 @@ func cmd_ls(p *process.Process, args []string) {
 		return
 	}
 
-	id, err := p.FS.PWD()
+	_, id, err := p.WD()
 	if err != nil {
 		fmt.Fprintf(p.Stderr, "ls: %s\n", err)
 		return
