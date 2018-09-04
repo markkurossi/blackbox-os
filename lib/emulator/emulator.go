@@ -10,6 +10,9 @@ package emulator
 
 import (
 	"fmt"
+	"regexp"
+	"strconv"
+	"strings"
 
 	"github.com/markkurossi/blackbox-os/kernel/kmsg"
 )
@@ -65,6 +68,10 @@ func actC0Control(e *Emulator, state *State, ch int) {
 	}
 }
 
+func actCSIParam(e *Emulator, state *State, ch int) {
+	e.params = append(e.params, rune(ch))
+}
+
 func actCSI(e *Emulator, state *State, ch int) {
 	switch ch {
 	case 'C':
@@ -75,9 +82,57 @@ func actCSI(e *Emulator, state *State, ch int) {
 	case 'P':
 		// XXX intermediate: how many characters to delete
 		e.DeleteChars(e.Row, e.Col, 1)
+	case 'H': // Cursor position.
+		row, col := e.csiParams(1, 1)
+		e.MoveTo(row-1, col-1)
+	case 'J': // Erase in Display (cursor does not move)
+		switch e.csiParam(0) {
+		case 0: // Erase from current position to end (inclusive)
+			// XXX
+			e.Clear()
+		case 1: // Erase from beginning ot current position (inclusive)
+			// XXX
+		case 2: // Erase entire display
+			e.Clear()
+		}
 	default:
-		kmsg.Print(fmt.Sprintf("actCSI: %s: %x\n", state, ch))
+		kmsg.Print(fmt.Sprintf("actCSI: %s: 0x%x\n", state, ch))
 	}
+}
+
+var reParam = regexp.MustCompilePOSIX("^([^0-9;:]*)([0-9;:]*)$")
+
+func (e *Emulator) parseCSIParam(defaults []int) (string, []int) {
+	matches := reParam.FindStringSubmatch(string(e.params))
+	e.params = nil
+	if matches == nil {
+		return "", nil
+	}
+	for idx, param := range strings.Split(matches[2], ";") {
+		i, err := strconv.Atoi(param)
+		if err != nil {
+			if idx < len(defaults) {
+				i = defaults[idx]
+			}
+		}
+		if idx < len(defaults) {
+			defaults[idx] = i
+		} else {
+			defaults = append(defaults, i)
+		}
+	}
+
+	return matches[1], defaults
+}
+
+func (e *Emulator) csiParam(a int) int {
+	_, values := e.parseCSIParam([]int{a})
+	return values[0]
+}
+
+func (e *Emulator) csiParams(a, b int) (int, int) {
+	_, values := e.parseCSIParam([]int{a, b})
+	return values[0], values[1]
 }
 
 type Transition struct {
@@ -148,6 +203,7 @@ func init() {
 
 	stESC.AddActions('[', '[', nil, stCSI)
 
+	stCSI.AddActions(0x30, 0x3f, actCSIParam, nil)
 	stCSI.AddActions(0x40, 0x7e, actCSI, stStart)
 }
 
@@ -158,6 +214,7 @@ type Emulator struct {
 	Row    int
 	Lines  [][]Char
 	state  *State
+	params []rune
 }
 
 func (e *Emulator) Resize(width, height int) {

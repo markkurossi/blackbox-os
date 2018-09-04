@@ -14,6 +14,7 @@ import (
 	"log"
 	"sync"
 	"syscall/js"
+	"unicode"
 
 	"github.com/markkurossi/blackbox-os/kernel/control"
 	"github.com/markkurossi/blackbox-os/kernel/kmsg"
@@ -64,7 +65,7 @@ const (
 )
 
 type Console struct {
-	flags     TTYFlags
+	flags     emulator.TTYFlags
 	qCanon    *Canonical
 	qNonCanon []byte
 	cond      *sync.Cond
@@ -78,11 +79,9 @@ type Canonical struct {
 	cursor int
 	tail   int
 	avail  []byte
-	Region Span
 }
 
-func (in *Canonical) input(c *Console, row, col int,
-	kt KeyType, code rune) bool {
+func (in *Canonical) input(c *Console, kt KeyType, code rune) bool {
 
 	switch kt {
 	case KeyCode:
@@ -140,16 +139,19 @@ func (in *Canonical) input(c *Console, row, col int,
 				in.tail = 0
 				return true
 			}
-			// XXX insert char only if printable
-			if in.insert(code) {
-				// Print line.
-				for i := in.cursor - 1; i < in.tail; i++ {
-					c.Echo([]int{int(in.buf[i])})
+			if unicode.IsPrint(rune(code)) {
+				if in.insert(code) {
+					// Print line.
+					for i := in.cursor - 1; i < in.tail; i++ {
+						c.Echo([]int{int(in.buf[i])})
+					}
+					// And move cursor back to its position.
+					for i := in.tail; i > in.cursor; i-- {
+						c.Echo([]int{0x08})
+					}
 				}
-				// And move cursor back to its position.
-				for i := in.tail; i > in.cursor; i-- {
-					c.Echo([]int{0x08})
-				}
+			} else {
+				kmsg.Print(fmt.Sprintf("Skipping non-printable 0x%x\n", code))
 			}
 		}
 
@@ -210,23 +212,21 @@ func NewCanonical() *Canonical {
 	}
 }
 
-type Pos struct {
-	Row int
-	Col int
-}
-
-type Span struct {
-	From   Pos
-	To     Pos
-	Cursor Pos
-}
-
-func (c *Console) Flags() TTYFlags {
+func (c *Console) Flags() emulator.TTYFlags {
 	return c.flags
 }
 
-func (c *Console) SetFlags(flags TTYFlags) {
+func (c *Console) SetFlags(flags emulator.TTYFlags) {
 	c.flags = flags
+}
+
+func (c *Console) Cursor() (int, int) {
+	return c.emulator.Row, c.emulator.Col
+}
+
+func (c *Console) Size() (int, int, int, int) {
+	return c.emulator.Width, c.emulator.Height,
+		c.emulator.Width, c.emulator.Height
 }
 
 func (c *Console) String() string {
@@ -270,7 +270,7 @@ func (c *Console) Read(p []byte) (int, error) {
 
 	var n int
 
-	if (c.flags & ICANON) != 0 {
+	if (c.flags & emulator.ICANON) != 0 {
 		for len(c.qCanon.avail) == 0 {
 			c.cond.Wait()
 		}
@@ -366,8 +366,8 @@ func (c *Console) OnKeyEvent(evType, key string, keyCode int, ctrl bool) {
 func (c *Console) onKey(kt KeyType, code rune) {
 	c.cond.L.Lock()
 
-	if (c.flags & ICANON) != 0 {
-		if c.qCanon.input(c, c.emulator.Row, c.emulator.Col, kt, code) {
+	if (c.flags & emulator.ICANON) != 0 {
+		if c.qCanon.input(c, kt, code) {
 			c.emulator.MoveTo(c.emulator.Row+1, 0)
 			c.cond.Broadcast()
 		}
@@ -380,7 +380,7 @@ func (c *Console) onKey(kt KeyType, code rune) {
 }
 
 func (c *Console) Echo(code []int) {
-	if (c.flags & ECHO) != 0 {
+	if (c.flags & emulator.ECHO) != 0 {
 		for _, co := range code {
 			c.emulator.Input(co)
 		}
@@ -388,9 +388,9 @@ func (c *Console) Echo(code []int) {
 	}
 }
 
-func NewConsole() TTY {
+func NewConsole() emulator.TTY {
 	c := &Console{
-		flags:    ICANON | ECHO,
+		flags:    emulator.ICANON | emulator.ECHO,
 		qCanon:   NewCanonical(),
 		cond:     sync.NewCond(new(sync.Mutex)),
 		emulator: emulator.NewEmulator(),

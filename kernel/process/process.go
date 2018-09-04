@@ -15,12 +15,12 @@ import (
 	"github.com/markkurossi/backup/lib/crypto/zone"
 	"github.com/markkurossi/backup/lib/storage"
 	"github.com/markkurossi/backup/lib/tree"
-	"github.com/markkurossi/blackbox-os/kernel/tty"
+	"github.com/markkurossi/blackbox-os/lib/emulator"
 	"github.com/markkurossi/blackbox-os/lib/file"
 )
 
 type Process struct {
-	TTY    tty.TTY
+	TTY    emulator.TTY
 	Stdin  io.Reader
 	Stdout io.Writer
 	Stderr io.Writer
@@ -98,7 +98,7 @@ func (p *Process) SetWD(path string) error {
 	return nil
 }
 
-func NewProcess(t tty.TTY, z *zone.Zone) (*Process, error) {
+func NewProcess(t emulator.TTY, z *zone.Zone) (*Process, error) {
 	fs, err := NewFS(z)
 	if err != nil {
 		return nil, err

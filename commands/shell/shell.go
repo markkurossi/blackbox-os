@@ -19,6 +19,7 @@ import (
 
 	"github.com/markkurossi/blackbox-os/kernel/control"
 	"github.com/markkurossi/blackbox-os/kernel/process"
+	"github.com/markkurossi/blackbox-os/lib/emulator"
 	"github.com/markkurossi/blackbox-os/lib/file"
 )
 
@@ -86,9 +87,15 @@ func readLine(in io.Reader) string {
 }
 
 func Shell(p *process.Process) {
+	rl := emulator.NewReadline(p.TTY)
+
 	for control.KernelPower != 0 {
-		fmt.Fprintf(p.Stdout, prompt(p))
-		line := readLine(p.Stdin)
+		line, err := rl.Read(prompt(p))
+		fmt.Fprintf(p.Stdout, "\n")
+		if err != nil {
+			fmt.Fprintf(p.Stderr, "%s\n", err)
+			return
+		}
 		args := strings.Split(line, " ")
 		if len(args) == 0 || len(args[0]) == 0 {
 			continue

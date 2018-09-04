@@ -6,7 +6,7 @@
 // All rights reserved.
 //
 
-package tty
+package emulator
 
 type TTYFlags uint
 
@@ -19,6 +19,8 @@ type TTY interface {
 	Flags() TTYFlags
 	SetFlags(flags TTYFlags)
 	Read(p []byte) (n int, err error)
+	Cursor() (row, col int)
+	Size() (width, height, widthPx, heightPx int)
 	Write(p []byte) (n int, err error)
 	Flush() error
 }
