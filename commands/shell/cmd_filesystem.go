@@ -11,10 +11,12 @@ package shell
 import (
 	"flag"
 	"fmt"
+	"io"
 	"time"
 
 	"github.com/markkurossi/backup/lib/tree"
 	"github.com/markkurossi/blackbox-os/kernel/process"
+	"github.com/markkurossi/blackbox-os/lib/emulator"
 )
 
 func init() {
@@ -30,6 +32,10 @@ func init() {
 		Builtin{
 			Name: "ls",
 			Cmd:  cmd_ls,
+		},
+		Builtin{
+			Name: "cat",
+			Cmd:  cmd_cat,
 		},
 	}...)
 }
@@ -116,44 +122,14 @@ func listSnapshots(p *process.Process) error {
 }
 
 func listDirShort(p *process.Process, el *tree.Directory) {
-	var max = 0
+	var names []string
 
-	// Count the length of the longest element.
+	// Collect file names.
 	for _, e := range el.Entries {
-		len := len(e.Name)
-		if len > max {
-			max = len
-		}
+		names = append(names, e.Name)
 	}
 
-	width := (max/8 + 1) * 8
-	perLine := 80 / width
-	if perLine < 1 {
-		perLine = 1
-	}
-
-	count := 0
-
-	for _, e := range el.Entries {
-		fmt.Fprintf(p.Stdout, "%s", e.Name)
-		count++
-		if count >= perLine {
-			fmt.Fprintf(p.Stdout, "\n")
-			count = 0
-		} else {
-			len := len(e.Name)
-			len = (len/8 + 1) * 8
-			fmt.Fprintf(p.Stdout, "\t")
-
-			for len < width {
-				fmt.Fprintf(p.Stdout, "\t")
-				len += 8
-			}
-		}
-	}
-	if count > 0 {
-		fmt.Fprintf(p.Stdout, "\n")
-	}
+	emulator.Tabulate(names, p.Stdout)
 }
 
 func listDirLong(p *process.Process, el *tree.Directory) {
@@ -167,5 +143,34 @@ func listDirLong(p *process.Process, el *tree.Directory) {
 			modStr = modified.Format("Jan _2 15:04")
 		}
 		fmt.Fprintf(p.Stdout, "%s  %s\t%s\n", e.Mode, modStr, e.Name)
+	}
+}
+
+func cmd_cat(p *process.Process, args []string) {
+	for i := 1; i < len(args); i++ {
+		catFile(p, args[i])
+	}
+}
+
+func catFile(p *process.Process, filename string) {
+	path, err := p.ResolvePath(filename)
+	if err != nil {
+		fmt.Fprintf(p.Stderr, "cat: %s\n", err)
+		return
+	}
+
+	element, err := tree.DeserializeID(path[len(path)-1].ID, p.FS.Zone)
+	if err != nil {
+		fmt.Fprintf(p.Stderr, "cat: %s\n", err)
+		return
+	}
+	file, ok := element.(tree.File)
+	if !ok {
+		fmt.Fprintf(p.Stderr, "cat: file '%s' is not a file\n", filename)
+		return
+	}
+	_, err = io.Copy(p.Stdout, file.Reader())
+	if err != nil {
+		fmt.Fprintf(p.Stderr, "cat: %s\n", err)
 	}
 }

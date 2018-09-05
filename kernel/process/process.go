@@ -60,18 +60,36 @@ func (p *Process) WD() (str string, id storage.ID, err error) {
 }
 
 func (p *Process) SetWD(path string) error {
-	if len(path) == 0 {
-		return fmt.Errorf("Invalid path '%s'", path)
+	wd, err := p.ResolvePath(path)
+	if err != nil {
+		return err
 	}
-	parts := file.PathSplit(path)
+	// Check that the last element is a directory.
+	element, err := tree.DeserializeID(wd[len(wd)-1].ID, p.FS.Zone)
+	if err != nil {
+		return err
+	}
+	_, ok := element.(*tree.Directory)
+	if !ok {
+		return fmt.Errorf("File '%s' is not a directory", path)
+	}
+	p.FS.WD = wd
+	return nil
+}
 
-	var wd []WDEntry
+func (p *Process) ResolvePath(filename string) ([]PathElement, error) {
+	if len(filename) == 0 {
+		return nil, fmt.Errorf("Invalid filename '%s'", filename)
+	}
+	parts := file.PathSplit(filename)
+
+	var path []PathElement
 	if len(parts[0]) == 0 {
 		// Absolute path starting from the root.
-		wd = p.FS.WD[:1]
+		path = p.FS.WD[:1]
 	} else {
 		// Relative path starting from the current working directory.
-		wd = p.FS.WD
+		path = p.FS.WD
 	}
 
 	for _, part := range parts {
@@ -81,21 +99,21 @@ func (p *Process) SetWD(path string) error {
 
 		case "..":
 			// Move to parent.
-			if len(wd) > 1 {
-				wd = wd[0 : len(wd)-1]
+			if len(path) > 1 {
+				path = path[0 : len(path)-1]
 			}
 
 		default:
-			// Resolve sub-directory.
-			entry, err := p.FS.LookupDir(wd, part)
+			// Resolve child.
+			entry, err := p.FS.LookupChild(path, part)
 			if err != nil {
-				return err
+				return nil, err
 			}
-			wd = append(wd, *entry)
+			path = append(path, *entry)
 		}
 	}
-	p.FS.WD = wd
-	return nil
+
+	return path, nil
 }
 
 func NewProcess(t emulator.TTY, z *zone.Zone) (*Process, error) {
@@ -126,7 +144,7 @@ func NewFS(z *zone.Zone) (*FS, error) {
 	if !ok {
 		return nil, fmt.Errorf("Invalid filesystem root directory: %T", element)
 	}
-	fs.WD = append(fs.WD, WDEntry{
+	fs.WD = append(fs.WD, PathElement{
 		ID:   el.Root,
 		Name: "",
 	})
@@ -136,14 +154,15 @@ func NewFS(z *zone.Zone) (*FS, error) {
 
 type FS struct {
 	Zone *zone.Zone
-	WD   []WDEntry
+	WD   []PathElement
 }
 
-func (fs *FS) LookupDir(wd []WDEntry, name string) (*WDEntry, error) {
-	if len(wd) == 0 {
+func (fs *FS) LookupChild(path []PathElement, name string) (
+	*PathElement, error) {
+	if len(path) == 0 {
 		return nil, fmt.Errorf("No current working directory")
 	}
-	element, err := tree.DeserializeID(wd[len(wd)-1].ID, fs.Zone)
+	element, err := tree.DeserializeID(path[len(path)-1].ID, fs.Zone)
 	if err != nil {
 		return nil, err
 	}
@@ -153,21 +172,21 @@ func (fs *FS) LookupDir(wd []WDEntry, name string) (*WDEntry, error) {
 	}
 	for _, e := range el.Entries {
 		if name == e.Name {
-			return &WDEntry{
+			return &PathElement{
 				ID:   e.Entry,
 				Name: e.Name,
 			}, nil
 		}
 	}
 
-	return nil, fmt.Errorf("No such directory '%s'", name)
+	return nil, fmt.Errorf("No such file or directory '%s'", name)
 }
 
-type WDEntry struct {
+type PathElement struct {
 	ID   storage.ID
 	Name string
 }
 
-func (wd WDEntry) String() string {
+func (wd PathElement) String() string {
 	return file.PathEscape(wd.Name)
 }

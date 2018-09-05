@@ -13,7 +13,10 @@ import (
 	"unicode"
 )
 
+type TabCompletion func(line string) (completions []string)
+
 type Readline struct {
+	Tab    TabCompletion
 	tty    TTY
 	buf    []byte
 	cursor int
@@ -34,22 +37,26 @@ func (rl *Readline) Read(prompt string) (string, error) {
 
 	rl.cursor = 0
 	rl.tail = 0
-	rl.tty.Write([]byte(prompt))
+	fmt.Fprintf(rl.tty, "%s", prompt)
 
 	var buf [1]byte
 	for {
 		_, err := rl.tty.Read(buf[:])
 		if err != nil {
-			return "", err
+			return rl.line(), err
 		}
-		if rl.input(buf[0]) {
+		if rl.input(buf[0], prompt) {
 			// Line read.
-			return string(rl.buf[:rl.tail]), nil
+			return rl.line(), nil
 		}
 	}
 }
 
-func (rl *Readline) input(b byte) bool {
+func (rl *Readline) line() string {
+	return string(rl.buf[:rl.tail])
+}
+
+func (rl *Readline) input(b byte, prompt string) bool {
 	switch b {
 	case 0x01: // C-a
 		for rl.cursor > 0 {
@@ -74,6 +81,19 @@ func (rl *Readline) input(b byte) bool {
 
 	case 0x06: // C-f
 		rl.cursorRight()
+
+	case 0x09: // TAB
+		if rl.Tab != nil {
+			completions := rl.Tab(rl.line())
+			switch len(completions) {
+			case 0: // No matches
+			case 1: // Line expanded
+			default: // Print options
+				fmt.Fprintf(rl.tty, "\n")
+				Tabulate(completions, rl.tty)
+				fmt.Fprintf(rl.tty, "%s", prompt)
+			}
+		}
 
 	case 0x0b: // C-k
 		rl.tail = rl.cursor

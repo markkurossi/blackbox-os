@@ -88,6 +88,9 @@ func readLine(in io.Reader) string {
 
 func Shell(p *process.Process) {
 	rl := emulator.NewReadline(p.TTY)
+	rl.Tab = func(line string) []string {
+		return tabCompletion(p, line)
+	}
 
 	for control.KernelPower != 0 {
 		line, err := rl.Read(prompt(p))
@@ -159,4 +162,8 @@ func prompt(p *process.Process) string {
 	}
 
 	return string(result)
+}
+
+func tabCompletion(p *process.Process, prefix string) []string {
+	return []string{"a", "b", "c"}
 }
