@@ -78,18 +78,19 @@ func (p *Process) SetWD(path string) error {
 }
 
 func (p *Process) ResolvePath(filename string) ([]PathElement, error) {
-	if len(filename) == 0 {
-		return nil, fmt.Errorf("Invalid filename '%s'", filename)
+	var parts []string
+
+	if len(filename) > 0 {
+		parts = file.PathSplit(filename)
 	}
-	parts := file.PathSplit(filename)
 
 	var path []PathElement
-	if len(parts[0]) == 0 {
-		// Absolute path starting from the root.
-		path = p.FS.WD[:1]
-	} else {
+	if len(parts) == 0 || len(parts[0]) > 0 {
 		// Relative path starting from the current working directory.
 		path = p.FS.WD
+	} else {
+		// Absolute path starting from the root.
+		path = p.FS.WD[:1]
 	}
 
 	for _, part := range parts {

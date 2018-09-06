@@ -14,11 +14,29 @@ import (
 
 var rePathEscape = regexp.MustCompilePOSIX("([/])")
 
+type Path []string
+
+func (p Path) String() string {
+	var result string
+
+	if len(p) == 1 && len(p[0]) == 0 {
+		return "/"
+	}
+
+	for idx, el := range p {
+		if idx > 0 {
+			result += "/"
+		}
+		result += PathEscape(el)
+	}
+	return result
+}
+
 func PathEscape(path string) string {
 	return rePathEscape.ReplaceAllString(path, "\\${1}")
 }
 
-func PathSplit(path string) []string {
+func PathSplit(path string) Path {
 	var result []string
 	var runes = []rune(path)
 	var part []rune

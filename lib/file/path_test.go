@@ -26,10 +26,12 @@ func TestPathEscape(t *testing.T) {
 	}
 }
 
-var splitTests = map[string][]string{
+var splitTests = map[string]Path{
 	"a":      []string{"a"},
 	"a\\/b":  []string{"a/b"},
 	"/a/b/c": []string{"", "a", "b", "c"},
+	"/e":     []string{"", "e"},
+	"/":      []string{""},
 }
 
 func TestPathSplit(t *testing.T) {
@@ -38,6 +40,10 @@ func TestPathSplit(t *testing.T) {
 
 		if !reflect.DeepEqual(to, arr) {
 			t.Errorf("Path split failed: %s=>%v, expected %v\n", from, arr, to)
+		}
+
+		if arr.String() != from {
+			t.Errorf("Path.String() failed: %s!=%s\n", arr.String(), from)
 		}
 	}
 }

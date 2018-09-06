@@ -13,12 +13,14 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"regexp"
 	"sort"
 	"strings"
 	"syscall/js"
 
 	"github.com/markkurossi/blackbox-os/kernel/control"
 	"github.com/markkurossi/blackbox-os/kernel/process"
+	"github.com/markkurossi/blackbox-os/lib/bbos"
 	"github.com/markkurossi/blackbox-os/lib/emulator"
 	"github.com/markkurossi/blackbox-os/lib/file"
 )
@@ -29,6 +31,31 @@ type Builtin struct {
 }
 
 var builtin []Builtin
+
+type CommandLine []string
+
+func (cl CommandLine) String() string {
+	var result string
+
+	for idx, command := range cl {
+		if idx > 0 {
+			result += " "
+		}
+		result += CommandEscape(command)
+	}
+	return result
+}
+
+func split(line string) CommandLine {
+	// XXX proper shell argument splitting
+	return strings.Split(line, " ")
+}
+
+var reCommandEscape = regexp.MustCompilePOSIX("([ \\'\"])")
+
+func CommandEscape(command string) string {
+	return reCommandEscape.ReplaceAllString(command, "\\${1}")
+}
 
 func cmd_help(p *process.Process, args []string) {
 	fmt.Fprintf(p.Stdout, "Available commands are:\n")
@@ -88,7 +115,7 @@ func readLine(in io.Reader) string {
 
 func Shell(p *process.Process) {
 	rl := emulator.NewReadline(p.TTY)
-	rl.Tab = func(line string) []string {
+	rl.Tab = func(line string) (string, []string) {
 		return tabCompletion(p, line)
 	}
 
@@ -99,7 +126,7 @@ func Shell(p *process.Process) {
 			fmt.Fprintf(p.Stderr, "%s\n", err)
 			return
 		}
-		args := strings.Split(line, " ")
+		args := split(line)
 		if len(args) == 0 || len(args[0]) == 0 {
 			continue
 		}
@@ -164,6 +191,93 @@ func prompt(p *process.Process) string {
 	return string(result)
 }
 
-func tabCompletion(p *process.Process, prefix string) []string {
-	return []string{"a", "b", "c"}
+func tabCompletion(p *process.Process, line string) (string, []string) {
+	parts := split(line)
+
+	if len(parts) == 0 {
+		return line, nil
+	}
+	last := parts[len(parts)-1]
+
+	// XXX Check what to complete
+
+	return tabFileCompletion(p, line, parts, last)
+}
+
+func tabFileCompletion(p *process.Process, line string, parts CommandLine,
+	last string) (string, []string) {
+
+	info, err := bbos.Stat(p, last)
+	if err == nil {
+		// An existing file.
+		if info.IsDir() {
+			if !strings.HasSuffix(last, "/") {
+				parts[len(parts)-1] = fmt.Sprintf("%s/", last)
+				return parts.String(), nil
+			}
+			files, err := bbos.ReadDir(p, last)
+			if err != nil {
+				return line, nil
+			}
+			var arr []string
+			for _, i := range files {
+				name := i.Name()
+				if i.IsDir() {
+					name += "/"
+				}
+				arr = append(arr, name)
+			}
+			switch len(arr) {
+			case 0:
+				return line, nil
+			case 1:
+				parts[len(parts)-1] = fmt.Sprintf("%s%s", last, arr[0])
+				return parts.String(), nil
+			default:
+				return "", arr
+			}
+		} else {
+			// Return the line unmodified.
+			return line, nil
+		}
+	}
+
+	// Check if `last' is a file name prefix.
+	lastPath := file.PathSplit(last)
+	if len(lastPath) > 0 {
+		last = lastPath[len(lastPath)-1]
+		lastPath = lastPath[:len(lastPath)-1]
+	}
+	info, err = bbos.Stat(p, lastPath.String())
+	if err != nil {
+		return line, nil
+	}
+	if info.IsDir() {
+		files, err := bbos.ReadDir(p, lastPath.String())
+		if err != nil {
+			return line, nil
+		}
+		var arr []string
+		for _, i := range files {
+			if strings.HasPrefix(i.Name(), last) {
+				name := i.Name()
+				if i.IsDir() {
+					name += "/"
+				}
+				arr = append(arr, name)
+			}
+		}
+		switch len(arr) {
+		case 0:
+			return line, nil
+		case 1:
+			parts[len(parts)-1] = fmt.Sprintf("%s%s", lastPath.String(), arr[0])
+			return parts.String(), nil
+		default:
+			return "", arr
+		}
+	} else {
+		// Return the line unmodified.
+		return line, nil
+	}
 }
