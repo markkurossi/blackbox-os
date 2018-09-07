@@ -18,6 +18,7 @@ import (
 	"strings"
 	"syscall/js"
 
+	"github.com/markkurossi/backup/lib/tree"
 	"github.com/markkurossi/blackbox-os/kernel/control"
 	"github.com/markkurossi/blackbox-os/kernel/process"
 	"github.com/markkurossi/blackbox-os/lib/bbos"
@@ -198,10 +199,49 @@ func tabCompletion(p *process.Process, line string) (string, []string) {
 		return line, nil
 	}
 	last := parts[len(parts)-1]
+	if len(last) == 0 {
+		return line, nil
+	}
 
-	// XXX Check what to complete
+	if last[0] == '@' {
+		return tabSnapshotCompletion(p, line, parts, last)
+	}
 
 	return tabFileCompletion(p, line, parts, last)
+}
+
+func tabSnapshotCompletion(p *process.Process, line string, parts CommandLine,
+	last string) (string, []string) {
+
+	root := p.FS.Zone.HeadID
+	var result []string
+
+	for !root.Undefined() {
+		element, err := tree.DeserializeID(root, p.FS.Zone)
+		if err != nil {
+			return line, nil
+		}
+		el, ok := element.(*tree.Snapshot)
+		if !ok {
+			return line, nil
+		}
+		id := fmt.Sprintf("@%s", root)
+		if strings.HasPrefix(id, last) {
+			result = append(result, id)
+		}
+		root = el.Parent
+	}
+
+	switch len(result) {
+	case 0:
+		return line, nil
+	case 1:
+		parts[len(parts)-1] = result[0]
+		return parts.String(), nil
+	default:
+		parts[len(parts)-1] = commonPrefix(result)
+		return parts.String(), result
+	}
 }
 
 func tabFileCompletion(p *process.Process, line string, parts CommandLine,
@@ -231,10 +271,10 @@ func tabFileCompletion(p *process.Process, line string, parts CommandLine,
 			case 0:
 				return line, nil
 			case 1:
-				parts[len(parts)-1] = fmt.Sprintf("%s%s", last, arr[0])
+				parts[len(parts)-1] = makeFilename(last, arr[0])
 				return parts.String(), nil
 			default:
-				return "", arr
+				return parts.String(), arr
 			}
 		} else {
 			// Return the line unmodified.
@@ -243,17 +283,17 @@ func tabFileCompletion(p *process.Process, line string, parts CommandLine,
 	}
 
 	// Check if `last' is a file name prefix.
-	lastPath := file.PathSplit(last)
-	if len(lastPath) > 0 {
-		last = lastPath[len(lastPath)-1]
-		lastPath = lastPath[:len(lastPath)-1]
+	path := file.PathSplit(last)
+	if len(path) > 0 {
+		last = path[len(path)-1]
+		path = path[:len(path)-1]
 	}
-	info, err = bbos.Stat(p, lastPath.String())
+	info, err = bbos.Stat(p, path.String())
 	if err != nil {
 		return line, nil
 	}
 	if info.IsDir() {
-		files, err := bbos.ReadDir(p, lastPath.String())
+		files, err := bbos.ReadDir(p, path.String())
 		if err != nil {
 			return line, nil
 		}
@@ -271,13 +311,46 @@ func tabFileCompletion(p *process.Process, line string, parts CommandLine,
 		case 0:
 			return line, nil
 		case 1:
-			parts[len(parts)-1] = fmt.Sprintf("%s%s", lastPath.String(), arr[0])
+			parts[len(parts)-1] = makeFilename(path.String(), arr[0])
 			return parts.String(), nil
 		default:
-			return "", arr
+			parts[len(parts)-1] = commonPrefix(arr)
+			return parts.String(), arr
 		}
 	} else {
 		// Return the line unmodified.
 		return line, nil
 	}
+}
+
+func makeFilename(prefix, file string) string {
+	if len(prefix) == 0 {
+		return fmt.Sprintf("/%s", file)
+	} else if prefix[len(prefix)-1] == '/' {
+		return fmt.Sprintf("%s%s", prefix, file)
+	} else {
+		return fmt.Sprintf("%s/%s", prefix, file)
+	}
+}
+
+func commonPrefix(values []string) string {
+	var prefix string
+
+	for idx, val := range values {
+		if idx == 0 {
+			prefix = val
+		}
+		var l = len(prefix)
+		if len(val) < l {
+			l = len(val)
+		}
+		var i int
+		for i = 0; i < l; i++ {
+			if prefix[i] != val[i] {
+				break
+			}
+		}
+		prefix = prefix[:i]
+	}
+	return prefix
 }

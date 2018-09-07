@@ -85,23 +85,25 @@ func (rl *Readline) input(b byte, prompt string) bool {
 	case 0x09: // TAB
 		if rl.Tab != nil {
 			line, completions := rl.Tab(rl.line())
+
+			// Line contains expanded line.
+			for rl.cursor > 0 {
+				VT100Backspace(rl.tty)
+				rl.cursor--
+			}
+			VT100EraseLineTail(rl.tty)
+
+			l := []byte(line)
+			rl.tail = copy(rl.buf, l)
+			rl.cursor = rl.tail
+
+			rl.tty.Write(rl.buf[:rl.tail])
+
+			// Print completions.
 			if len(completions) > 0 {
 				fmt.Fprintf(rl.tty, "\n")
 				Tabulate(completions, rl.tty)
 				fmt.Fprintf(rl.tty, "%s", prompt)
-				rl.tty.Write(rl.buf[:rl.tail])
-			} else {
-				// Line contains expanded line.
-				for rl.cursor > 0 {
-					VT100Backspace(rl.tty)
-					rl.cursor--
-				}
-				VT100EraseLineTail(rl.tty)
-
-				l := []byte(line)
-				rl.tail = copy(rl.buf, l)
-				rl.cursor = rl.tail
-
 				rl.tty.Write(rl.buf[:rl.tail])
 			}
 		}
