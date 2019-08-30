@@ -1,7 +1,7 @@
 //
 // kmsg.go
 //
-// Copyright (c) 2018 Markku Rossi
+// Copyright (c) 2018-2019 Markku Rossi
 //
 // All rights reserved.
 //
@@ -9,6 +9,7 @@
 package kmsg
 
 import (
+	"fmt"
 	"syscall/js"
 )
 
@@ -18,4 +19,8 @@ var (
 
 func Print(msg string) {
 	kmsgPrint.Invoke(msg)
+}
+
+func Printf(format string, a ...interface{}) {
+	kmsgPrint.Invoke(fmt.Sprintf(format, a...))
 }

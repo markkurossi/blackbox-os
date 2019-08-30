@@ -1,4 +1,4 @@
-GO1.11 := $(HOME)/work/go/bin/go1.11rc2
+GO := go
 ALL_TARGETS := wasm/kernel.wasm httpd/httpd wasm/fs
 PUBLIC := mrossi@isle-of-wight.dreamhost.com:markkurossi.com/blackbox-os/
 
@@ -10,10 +10,10 @@ clean:
 	$(RM) $(ALL_TARGETS)
 
 wasm/kernel.wasm: kernel/kernel.go
-	cd kernel; GOOS=js GOARCH=wasm $(GO1.11) build -o ../wasm/$(notdir $@)
+	cd kernel; GOOS=js GOARCH=wasm $(GO) build -o ../wasm/$(notdir $@)
 
 httpd/httpd: httpd/httpd.go
-	cd httpd; $(GO1.11) build -o $(notdir $@)
+	cd httpd; $(GO) build -o $(notdir $@)
 
 wasm/fs:
 	rsync -av sample/fs/.backup/* wasm/fs

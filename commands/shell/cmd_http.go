@@ -9,8 +9,10 @@
 package shell
 
 import (
+	"encoding/hex"
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 
 	"github.com/markkurossi/blackbox-os/kernel/process"
@@ -49,6 +51,8 @@ func cmd_http(p *process.Process, args []string) {
 			fmt.Fprintf(p.Stderr, "%s %s: %s\n", *method, url, err)
 			return
 		}
-		resp.Body.Close()
+		defer resp.Body.Close()
+		data, err := ioutil.ReadAll(resp.Body)
+		fmt.Fprintf(p.Stdout, "Response:\n%s", hex.Dump(data))
 	}
 }

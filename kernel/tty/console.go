@@ -1,7 +1,7 @@
 //
 // console.go
 //
-// Copyright (c) 2018 Markku Rossi
+// Copyright (c) 2018-2019 Markku Rossi
 //
 // All rights reserved.
 //
@@ -394,13 +394,19 @@ func NewConsole() emulator.TTY {
 		emulator: emulator.NewEmulator(),
 	}
 
-	flags := js.PreventDefault | js.StopPropagation
-	onKeyboard := js.NewEventCallback(flags, func(event js.Value) {
+	// XXX flags := js.PreventDefault | js.StopPropagation
+	onKeyboard := js.FuncOf(func(this js.Value, args []js.Value) interface{} {
+		if len(args) < 1 {
+			kmsg.Printf("Invalid event arguments: %v\n", args)
+			return nil
+		}
+		event := args[0]
 		evType := event.Get("type").String()
 		key := event.Get("key").String()
 		keyCode := event.Get("keyCode").Int()
 		ctrlKey := event.Get("ctrlKey").Bool()
 		c.OnKeyEvent(evType, key, keyCode, ctrlKey)
+		return nil
 	})
 
 	initKeyboard.Invoke(onKeyboard)

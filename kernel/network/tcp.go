@@ -1,7 +1,7 @@
 //
 // tcp.go
 //
-// Copyright (c) 2018 Markku Rossi
+// Copyright (c) 2018-2019 Markku Rossi
 //
 // All rights reserved.
 //
@@ -80,10 +80,10 @@ type WebSocket struct {
 	URL       string
 	Native    js.Value
 	C         chan Message
-	onOpen    js.Callback
-	onMessage js.Callback
-	onError   js.Callback
-	onClose   js.Callback
+	onOpen    js.Func
+	onMessage js.Func
+	onError   js.Func
+	onClose   js.Func
 }
 
 func (ws *WebSocket) Network() string {
@@ -157,17 +157,18 @@ func NewWebSocket(url string) *WebSocket {
 		URL: url,
 		C:   make(chan Message),
 	}
-	flags := js.PreventDefault | js.StopPropagation
+	// XXX flags := js.PreventDefault | js.StopPropagation
 
-	ws.onOpen = js.NewEventCallback(flags, func(event js.Value) {
+	ws.onOpen = js.FuncOf(func(this js.Value, args []js.Value) interface{} {
 		ws.C <- Message{
 			Type: Open,
 		}
+		return nil
 	})
-	ws.onMessage = js.NewCallback(func(args []js.Value) {
+	ws.onMessage = js.FuncOf(func(this js.Value, args []js.Value) interface{} {
 		if len(args) != 1 {
 			log.Printf("Invalid onMessage data\n")
-			return
+			return nil
 		}
 		data := args[0]
 
@@ -182,17 +183,20 @@ func NewWebSocket(url string) *WebSocket {
 			Type: Data,
 			Data: bytes,
 		}
+		return nil
 	})
-	ws.onError = js.NewCallback(func(args []js.Value) {
+	ws.onError = js.FuncOf(func(this js.Value, args []js.Value) interface{} {
 		ws.C <- Message{
 			Type:  Error,
 			Error: errors.New(args[0].String()),
 		}
+		return nil
 	})
-	ws.onClose = js.NewEventCallback(flags, func(event js.Value) {
+	ws.onClose = js.FuncOf(func(this js.Value, args []js.Value) interface{} {
 		ws.C <- Message{
 			Type: Close,
 		}
+		return nil
 	})
 
 	ws.Native = wsNew.Invoke(url, ws.onOpen, ws.onMessage, ws.onError,

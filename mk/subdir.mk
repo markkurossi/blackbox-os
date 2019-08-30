@@ -1,10 +1,10 @@
-GO1.11 := $(HOME)/work/go/bin/go1.11rc2
+GO := go
 phony_targets = build vet
 
 .PHONY: $(phony_targets)
 
 build:
-	GOOS=js GOARCH=wasm $(GO1.11) build
+	GOOS=js GOARCH=wasm $(GO) build
 
 vet:
-	GOOS=js GOARCH=wasm $(GO1.11) vet
+	GOOS=js GOARCH=wasm $(GO) vet
