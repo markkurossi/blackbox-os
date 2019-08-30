@@ -157,8 +157,6 @@ func NewWebSocket(url string) *WebSocket {
 		URL: url,
 		C:   make(chan Message),
 	}
-	// XXX flags := js.PreventDefault | js.StopPropagation
-
 	ws.onOpen = js.FuncOf(func(this js.Value, args []js.Value) interface{} {
 		ws.C <- Message{
 			Type: Open,

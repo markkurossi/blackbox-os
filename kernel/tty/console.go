@@ -394,7 +394,6 @@ func NewConsole() emulator.TTY {
 		emulator: emulator.NewEmulator(),
 	}
 
-	// XXX flags := js.PreventDefault | js.StopPropagation
 	onKeyboard := js.FuncOf(func(this js.Value, args []js.Value) interface{} {
 		if len(args) < 1 {
 			kmsg.Printf("Invalid event arguments: %v\n", args)
@@ -406,6 +405,10 @@ func NewConsole() emulator.TTY {
 		keyCode := event.Get("keyCode").Int()
 		ctrlKey := event.Get("ctrlKey").Bool()
 		c.OnKeyEvent(evType, key, keyCode, ctrlKey)
+
+		event.Call("stopPropagation")
+		event.Call("preventDefault")
+
 		return nil
 	})
 
