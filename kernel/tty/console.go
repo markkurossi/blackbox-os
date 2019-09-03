@@ -116,6 +116,9 @@ func (in *Canonical) input(c *Console, kt KeyType, code rune) bool {
 			in.tail = in.cursor
 			c.Echo([]int{0x1b, '[', 'K'})
 
+		case 0x0c: // C-l
+			c.Echo([]int{0x1b, '[', 'J'})
+
 		case 0x7f: // Delete
 			if in.cursor == 0 {
 				break

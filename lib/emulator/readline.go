@@ -1,7 +1,7 @@
 //
 // readline.go
 //
-// Copyright (c) 2018 Markku Rossi
+// Copyright (c) 2018-2019 Markku Rossi
 //
 // All rights reserved.
 //
@@ -111,6 +111,12 @@ func (rl *Readline) input(b byte, prompt string) bool {
 	case 0x0b: // C-k
 		rl.tail = rl.cursor
 		VT100EraseLineTail(rl.tty)
+
+	case 0x0c: // C-l
+		VT100EraseScreen(rl.tty)
+		VT100MoveTo(rl.tty, 0, 0)
+		fmt.Fprintf(rl.tty, "%s", prompt)
+		rl.tty.Write(rl.buf[:rl.tail])
 
 	case 0x7f: // Delete
 		if rl.cursor == 0 {

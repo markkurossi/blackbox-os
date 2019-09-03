@@ -1,7 +1,7 @@
 //
 // vt100.go
 //
-// Copyright (c) 2018 Markku Rossi
+// Copyright (c) 2018, 2019 Markku Rossi
 //
 // All rights reserved.
 //
@@ -9,6 +9,7 @@
 package emulator
 
 import (
+	"fmt"
 	"io"
 )
 
@@ -39,5 +40,25 @@ func VT100EraseLineTail(out io.Writer) error {
 
 func VT100EraseLine(out io.Writer) error {
 	_, err := out.Write([]byte{0x1b, '[', '2', 'K'})
+	return err
+}
+
+func VT100EraseScreenHead(out io.Writer) error {
+	_, err := out.Write([]byte{0x1b, '[', '1', 'J'})
+	return err
+}
+
+func VT100EraseScreenTail(out io.Writer) error {
+	_, err := out.Write([]byte{0x1b, '[', 'J'})
+	return err
+}
+
+func VT100EraseScreen(out io.Writer) error {
+	_, err := out.Write([]byte{0x1b, '[', '2', 'J'})
+	return err
+}
+
+func VT100MoveTo(out io.Writer, row, col int) error {
+	_, err := out.Write([]byte(fmt.Sprintf("\x1b[%d;%dH", row, col)))
 	return err
 }
