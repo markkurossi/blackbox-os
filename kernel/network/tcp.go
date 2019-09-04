@@ -95,13 +95,9 @@ func (ws *WebSocket) String() string {
 }
 
 func (ws *WebSocket) Send(data []byte) {
-	buf := make([]byte, len(data))
-	copy(buf, data)
-	ta := js.TypedArrayOf(buf)
-
-	wsSend.Invoke(ws.Native, ta)
-
-	ta.Release()
+	buf := js.Global().Get("Uint8Array").New(len(data))
+	js.CopyBytesToJS(buf, data)
+	wsSend.Invoke(ws.Native, buf)
 }
 
 func (ws *WebSocket) Close() {

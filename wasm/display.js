@@ -1,7 +1,7 @@
 //
 // display.js
 //
-// Copyright (c) 2018 Markku Rossi
+// Copyright (c) 2018-2019 Markku Rossi
 //
 // All rights reserved.
 //
@@ -46,15 +46,7 @@ Display.prototype.clear = function() {
         this.element.removeChild(this.element.firstChild);
 }
 
-Display.prototype.addLine = function(data) {
-    var i;
-    var line = new Line();
-
-    for (i = 0; i < data.length; i += 4) {
-        line.add(data[i], data[i + 1], data[i + 2], data[i + 3]);
-    }
-    line.flush();
-
+Display.prototype.addLine = function(line) {
     this.element.appendChild(line.el);
 }
 

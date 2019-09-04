@@ -22,10 +22,10 @@ import (
 
 var (
 	initKeyboard = js.Global().Get("initKeyboard")
+	display      = js.Global().Get("display")
+	lineNew      = js.Global().Get("Line")
 	getWidth     = js.Global().Get("displayWidth")
 	getHeight    = js.Global().Get("displayHeight")
-	clear        = js.Global().Get("displayClear")
-	addLine      = js.Global().Get("displayAddLine")
 	debug        = js.Global().Get("debug")
 )
 
@@ -240,28 +240,25 @@ func (c *Console) Resize() {
 }
 
 func (c *Console) Flush() error {
-	clear.Invoke()
-
-	line := make([]uint32, c.emulator.Width*4)
-	ta := js.TypedArrayOf(line)
+	display.Call("clear")
 
 	for i := 0; i < c.emulator.Height; i++ {
+		line := lineNew.New()
+
 		for j := 0; j < c.emulator.Width; j++ {
 			ch := c.emulator.Lines[i][j]
-			line[j*4] = uint32(ch.Code)
-			line[j*4+1] = uint32(ch.Foreground)
-			line[j*4+2] = uint32(ch.Background)
 
 			var flags = 0
-
 			if j == c.emulator.Col && i == c.emulator.Row {
 				flags = 1
 			}
-			line[j*4+3] = uint32(flags)
+
+			line.Call("add", int(ch.Code), int(ch.Foreground),
+				int(ch.Background), int(flags))
 		}
-		addLine.Invoke(ta)
+		line.Call("flush")
+		display.Call("addLine", line)
 	}
-	ta.Release()
 
 	return nil
 }

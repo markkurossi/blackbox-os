@@ -1,7 +1,7 @@
 //
 // init.js
 //
-// Copyright (c) 2018 Markku Rossi
+// Copyright (c) 2018-2019 Markku Rossi
 //
 // All rights reserved.
 //
@@ -83,14 +83,6 @@ function displayWidth() {
 
 function displayHeight() {
     return display.height;
-}
-
-function displayClear() {
-    display.clear();
-}
-
-function displayAddLine(line) {
-    display.addLine(line);
 }
 
 function kmsgPrint(msg) {
