@@ -1,7 +1,7 @@
 //
 // process.go
 //
-// Copyright (c) 2018 Markku Rossi
+// Copyright (c) 2018-2019 Markku Rossi
 //
 // All rights reserved.
 //
@@ -28,15 +28,7 @@ type Process struct {
 }
 
 func (p *Process) WD() (str string, id storage.ID, err error) {
-	str = "/"
-	for _, e := range p.FS.WD {
-		if len(e.Name) > 0 {
-			if str[len(str)-1] != '/' {
-				str += "/"
-			}
-			str += e.String()
-		}
-	}
+	str = p.FS.WD.String()
 
 	if len(p.FS.WD) > 0 {
 		id = p.FS.WD[len(p.FS.WD)-1].ID
@@ -77,20 +69,20 @@ func (p *Process) SetWD(path string) error {
 	return nil
 }
 
-func (p *Process) ResolvePath(filename string) ([]PathElement, error) {
+func (p *Process) ResolvePath(filename string) (Path, error) {
 	var parts []string
 
 	if len(filename) > 0 {
 		parts = file.PathSplit(filename)
 	}
 
-	var path []PathElement
+	var path Path
 	if len(parts) == 0 || len(parts[0]) > 0 {
 		// Relative path starting from the current working directory.
-		path = p.FS.WD
+		path = p.FS.WD.Copy()
 	} else {
 		// Absolute path starting from the root.
-		path = p.FS.WD[:1]
+		path = p.FS.WD[:1].Copy()
 	}
 
 	for _, part := range parts {
@@ -155,11 +147,10 @@ func NewFS(z *zone.Zone) (*FS, error) {
 
 type FS struct {
 	Zone *zone.Zone
-	WD   []PathElement
+	WD   Path
 }
 
-func (fs *FS) LookupChild(path []PathElement, name string) (
-	*PathElement, error) {
+func (fs *FS) LookupChild(path Path, name string) (*PathElement, error) {
 	if len(path) == 0 {
 		return nil, fmt.Errorf("No current working directory")
 	}
@@ -181,6 +172,27 @@ func (fs *FS) LookupChild(path []PathElement, name string) (
 	}
 
 	return nil, fmt.Errorf("No such file or directory '%s'", name)
+}
+
+type Path []PathElement
+
+func (p Path) String() string {
+	str := "/"
+	for _, e := range p {
+		if len(e.Name) > 0 {
+			if str[len(str)-1] != '/' {
+				str += "/"
+			}
+			str += e.String()
+		}
+	}
+	return str
+}
+
+func (p Path) Copy() Path {
+	result := make(Path, len(p))
+	copy(result, p)
+	return result
 }
 
 type PathElement struct {

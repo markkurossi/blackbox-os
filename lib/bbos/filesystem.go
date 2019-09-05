@@ -1,7 +1,7 @@
 //
-// stat.go
+// filesystem.go
 //
-// Copyright (c) 2018 Markku Rossi
+// Copyright (c) 2018, 2019 Markku Rossi
 //
 // All rights reserved.
 //
@@ -88,9 +88,16 @@ func ReadDir(p *process.Process, dirname string) ([]os.FileInfo, error) {
 		return nil, fmt.Errorf("File '%s' is not a directory", dirname)
 	}
 
+	// XXX resolve path twice: here and Stat above
+	path, err := p.ResolvePath(dirname)
+	if err != nil {
+		return nil, err
+	}
+	dirName := path.String()
+
 	var result []os.FileInfo
 	for _, entry := range dir.Entries {
-		i, err := Stat(p, fmt.Sprintf("%s/%s", dirname, entry.Name))
+		i, err := Stat(p, fmt.Sprintf("%s/%s", dirName, entry.Name))
 		if err != nil {
 			return nil, err
 		}
