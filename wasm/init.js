@@ -76,15 +76,3 @@ function init(keyboard, mouse, input) {
 function uninit() {
     keyboardHandler = undefined;
 }
-
-function displayWidth() {
-    return display.width;
-}
-
-function displayHeight() {
-    return display.height;
-}
-
-function kmsgPrint(msg) {
-    console.log(msg);
-}

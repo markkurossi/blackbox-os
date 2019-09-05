@@ -24,8 +24,6 @@ var (
 	initKeyboard = js.Global().Get("initKeyboard")
 	display      = js.Global().Get("display")
 	lineNew      = js.Global().Get("Line")
-	getWidth     = js.Global().Get("displayWidth")
-	getHeight    = js.Global().Get("displayHeight")
 	debug        = js.Global().Get("debug")
 )
 
@@ -236,7 +234,7 @@ func (c *Console) String() string {
 }
 
 func (c *Console) Resize() {
-	c.emulator.Resize(getWidth.Invoke().Int(), getHeight.Invoke().Int())
+	c.emulator.Resize(display.Get("width").Int(), display.Get("height").Int())
 }
 
 func (c *Console) Flush() error {
