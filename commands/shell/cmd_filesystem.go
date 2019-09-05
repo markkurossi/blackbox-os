@@ -1,7 +1,7 @@
 //
 // cmd_filesystem.go
 //
-// Copyright (c) 2018 Markku Rossi
+// Copyright (c) 2018-2019 Markku Rossi
 //
 // All rights reserved.
 //

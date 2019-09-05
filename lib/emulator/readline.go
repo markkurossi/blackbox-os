@@ -186,9 +186,9 @@ func (rl *Readline) insert(b byte) bool {
 func (rl *Readline) delete() {
 	if rl.cursor == rl.tail {
 		rl.cursor--
-		rl.tail--
 	} else {
 		rl.cursor--
 		rl.buf = append(rl.buf[0:rl.cursor], rl.buf[rl.cursor+1:]...)
 	}
+	rl.tail--
 }
