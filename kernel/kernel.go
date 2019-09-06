@@ -1,7 +1,7 @@
 //
 // kernel.go
 //
-// Copyright (c) 2018 Markku Rossi
+// Copyright (c) 2018-2019 Markku Rossi
 //
 // All rights reserved.
 //
@@ -10,6 +10,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"log"
 	"net/url"
 	"syscall/js"
@@ -21,6 +22,7 @@ import (
 	"github.com/markkurossi/blackbox-os/kernel/control"
 	"github.com/markkurossi/blackbox-os/kernel/process"
 	"github.com/markkurossi/blackbox-os/kernel/tty"
+	"github.com/markkurossi/blackbox-os/lib/bbos"
 )
 
 var (
@@ -36,43 +38,47 @@ func main() {
 
 	console.Flush()
 	log.SetOutput(console)
-	runInit()
+	err := runInit()
+	if err != nil {
+		fmt.Fprintf(console, "Init failed: %s\n", err)
+	}
 
 	fmt.Fprintf(console, "\nSystem halted.\n")
 }
 
-func runInit() {
+func runInit() error {
 	// Load identities.
 	id, err := identity.GetNull()
 	if err != nil {
-		fmt.Fprintf(console, "Failed to load null identity: %s\n", err)
-	} else {
-		IDs = append(IDs, id)
+		return fmt.Errorf("Failed to load null identity: %s", err)
 	}
+	IDs = append(IDs, id)
 
 	// Init filesystem.
 	FS, err = persistence.NewHTTP(control.FSRoot)
 	if err != nil {
-		fmt.Fprintf(console, "Failed to mount filesystem '%s': %s\n",
+		return fmt.Errorf("Failed to mount filesystem '%s': %s",
 			control.FSRoot, err)
-		return
 	}
 	Zone, err = zone.Open(FS, control.FSZone, IDs)
 	if err != nil {
-		fmt.Fprintf(console, "Failed to open filesystem zone '%s': %s\n",
+		return fmt.Errorf("Failed to open filesystem zone '%s': %s",
 			control.FSZone, err)
-		return
 	}
-
-	fmt.Fprintf(console, "Black Box OS\n\n")
-	fmt.Fprintf(console, "Type `help' for list of available commands.\n")
 
 	process, err := process.NewProcess(console, Zone)
 	if err != nil {
-		fmt.Fprintf(console, "Failed to create init process: %s\n", err)
-	} else {
-		shell.Shell(process)
+		return fmt.Errorf("Failed to create init process: %s", err)
 	}
+	motd, err := bbos.Open(process, "/etc/motd")
+	if err != nil {
+		fmt.Fprintf(console, "Black Box OS\n\n")
+	} else {
+		io.Copy(process.Stdout, motd.Reader())
+	}
+	fmt.Fprintf(console, "\nType `help' for list of available commands.\n")
+
+	return shell.Shell(process)
 }
 
 func parseParams() {

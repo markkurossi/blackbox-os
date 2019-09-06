@@ -114,7 +114,7 @@ func readLine(in io.Reader) string {
 	return strings.TrimSpace(line)
 }
 
-func Shell(p *process.Process) {
+func Shell(p *process.Process) error {
 	rl := emulator.NewReadline(p.TTY)
 	rl.Tab = func(line string) (string, []string) {
 		return tabCompletion(p, line)
@@ -124,8 +124,7 @@ func Shell(p *process.Process) {
 		line, err := rl.Read(prompt(p))
 		fmt.Fprintf(p.Stdout, "\n")
 		if err != nil {
-			fmt.Fprintf(p.Stderr, "%s\n", err)
-			return
+			return err
 		}
 		args := split(line)
 		if len(args) == 0 || len(args[0]) == 0 {
@@ -149,6 +148,7 @@ func Shell(p *process.Process) {
 			fmt.Fprintf(p.Stderr, "Unknown command '%s'\n", args[0])
 		}
 	}
+	return nil
 }
 
 func prompt(p *process.Process) string {

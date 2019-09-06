@@ -10,6 +10,7 @@ package bbos
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"time"
 
@@ -109,4 +110,31 @@ func ReadDir(p *process.Process, dirname string) ([]os.FileInfo, error) {
 	}
 
 	return result, nil
+}
+
+type File struct {
+	handle tree.File
+}
+
+func (f *File) Reader() io.Reader {
+	return f.handle.Reader()
+}
+
+func Open(p *process.Process, name string) (*File, error) {
+	path, err := p.ResolvePath(name)
+	if err != nil {
+		return nil, err
+	}
+
+	element, err := tree.DeserializeID(path[len(path)-1].ID, p.FS.Zone)
+	if err != nil {
+		return nil, err
+	}
+	file, ok := element.(tree.File)
+	if !ok {
+		return nil, fmt.Errorf("Not a regular file: %s", name)
+	}
+	return &File{
+		handle: file,
+	}, nil
 }
