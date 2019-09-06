@@ -325,7 +325,7 @@ func tabFileCompletion(p *process.Process, line string, parts CommandLine,
 
 func makeFilename(prefix, file string) string {
 	if len(prefix) == 0 {
-		return fmt.Sprintf("/%s", file)
+		return file
 	} else if prefix[len(prefix)-1] == '/' {
 		return fmt.Sprintf("%s%s", prefix, file)
 	} else {
