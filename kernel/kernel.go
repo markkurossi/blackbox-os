@@ -76,6 +76,7 @@ func runInit() error {
 	} else {
 		io.Copy(process.Stdout, motd.Reader())
 	}
+
 	fmt.Fprintf(console, "\nType `help' for list of available commands.\n")
 
 	return shell.Shell(process)
