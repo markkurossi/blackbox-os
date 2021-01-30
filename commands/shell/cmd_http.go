@@ -53,6 +53,10 @@ func cmd_http(p *process.Process, args []string) {
 		}
 		defer resp.Body.Close()
 		data, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			fmt.Fprintf(p.Stderr, "%s: %s: %s\n", *method, url, err)
+			return
+		}
 		fmt.Fprintf(p.Stdout, "Response:\n%s", hex.Dump(data))
 	}
 }
