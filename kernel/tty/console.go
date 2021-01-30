@@ -389,7 +389,7 @@ func NewConsole() emulator.TTY {
 		flags:    emulator.ICANON | emulator.ECHO,
 		qCanon:   NewCanonical(),
 		cond:     sync.NewCond(new(sync.Mutex)),
-		emulator: emulator.NewEmulator(),
+		emulator: emulator.NewEmulator(kmsg.Writer),
 	}
 
 	onKeyboard := js.FuncOf(func(this js.Value, args []js.Value) interface{} {

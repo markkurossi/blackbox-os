@@ -12,8 +12,6 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"net/url"
-	"syscall/js"
 
 	"github.com/markkurossi/backup/lib/crypto/identity"
 	"github.com/markkurossi/backup/lib/crypto/zone"
@@ -26,11 +24,10 @@ import (
 )
 
 var (
-	console     = tty.NewConsole()
-	IDs         []identity.PrivateKey
-	FS          persistence.Accessor
-	Zone        *zone.Zone
-	locationURL = js.Global().Get("location").Get("href").String()
+	console = tty.NewConsole()
+	IDs     []identity.PrivateKey
+	FS      persistence.Accessor
+	Zone    *zone.Zone
 )
 
 func main() {
@@ -80,16 +77,4 @@ func runInit() error {
 	fmt.Fprintf(console, "\nType `help' for list of available commands.\n")
 
 	return shell.Shell(process)
-}
-
-func parseParams() {
-	url, err := url.Parse(locationURL)
-	if err != nil {
-		fmt.Fprintf(console, "Failed to parse location URL '%s': %s\n",
-			locationURL, err)
-	}
-	url.RawQuery = ""
-	url.Fragment = ""
-
-	control.FSRoot = fmt.Sprintf("%sfs", url)
 }

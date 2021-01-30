@@ -1,7 +1,7 @@
 //
 // kmsg.go
 //
-// Copyright (c) 2018-2019 Markku Rossi
+// Copyright (c) 2018-2021 Markku Rossi
 //
 // All rights reserved.
 //
@@ -10,12 +10,22 @@ package kmsg
 
 import (
 	"fmt"
+	"io"
 	"syscall/js"
 )
 
 var (
-	console = js.Global().Get("console")
+	console           = js.Global().Get("console")
+	Writer  io.Writer = &writer{}
 )
+
+type writer struct {
+}
+
+func (w *writer) Write(p []byte) (n int, err error) {
+	console.Call("log", string(p))
+	return len(p), nil
+}
 
 func Print(msg string) {
 	console.Call("log", msg)

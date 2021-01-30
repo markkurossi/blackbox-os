@@ -10,11 +10,10 @@ package emulator
 
 import (
 	"fmt"
+	"io"
 	"regexp"
 	"strconv"
 	"strings"
-
-	"github.com/markkurossi/blackbox-os/kernel/kmsg"
 )
 
 type RGBA uint32
@@ -41,7 +40,7 @@ type Char struct {
 type Action func(e *Emulator, state *State, ch int)
 
 func actError(e *Emulator, state *State, ch int) {
-	kmsg.Print(fmt.Sprintf("Emulator error: state=%s, ch=0x%x\n", state, ch))
+	e.Debug("Emulator error: state=%s, ch=0x%x\n", state, ch)
 	e.state = stStart
 }
 
@@ -64,7 +63,7 @@ func actC0Control(e *Emulator, state *State, ch int) {
 		e.MoveTo(e.Row, e.Col-1)
 
 	default:
-		kmsg.Print(fmt.Sprintf("actC0Control: %s: %x\n", state, ch))
+		e.Debug("actC0Control: %s: %x\n", state, ch)
 	}
 }
 
@@ -96,7 +95,7 @@ func actCSI(e *Emulator, state *State, ch int) {
 			e.Clear()
 		}
 	default:
-		kmsg.Print(fmt.Sprintf("actCSI: %s: 0x%x\n", state, ch))
+		e.Debug("actCSI: %s: 0x%x\n", state, ch)
 	}
 }
 
@@ -215,6 +214,21 @@ type Emulator struct {
 	Lines  [][]Char
 	state  *State
 	params []rune
+	debug  io.Writer
+}
+
+func NewEmulator(debug io.Writer) *Emulator {
+	return &Emulator{
+		state: stStart,
+		debug: debug,
+	}
+}
+
+func (e *Emulator) Debug(format string, a ...interface{}) {
+	if e.debug == nil {
+		return
+	}
+	e.debug.Write([]byte(fmt.Sprintf(format, a...)))
 }
 
 func (e *Emulator) Resize(width, height int) {
@@ -311,16 +325,10 @@ func (e *Emulator) DeleteChars(row, col, count int) {
 }
 
 func (e *Emulator) Input(code int) {
-	// kmsg.Print(fmt.Sprintf("Emulator.Input: %s<-0x%x", e.state, code))
+	// e.Debug("Emulator.Input: %s<-0x%x", e.state, code)
 	next := e.state.Input(e, code)
 	if next != nil {
-		// kmsg.Print(fmt.Sprintf("Emulator: %s->%s", e.state, next))
+		// e.Debug("Emulator: %s->%s", e.state, next)
 		e.state = next
-	}
-}
-
-func NewEmulator() *Emulator {
-	return &Emulator{
-		state: stStart,
 	}
 }
