@@ -384,13 +384,27 @@ func (c *Console) Echo(code []int) {
 	}
 }
 
+type inputWriter struct {
+	c *Console
+}
+
+// Write implements the io.Writer interface.
+func (iw *inputWriter) Write(p []byte) (int, error) {
+	for _, r := range string(p) {
+		iw.c.onKey(KeyCode, r)
+	}
+	return len(p), nil
+}
+
 func NewConsole() emulator.TTY {
 	c := &Console{
-		flags:    emulator.ICANON | emulator.ECHO,
-		qCanon:   NewCanonical(),
-		cond:     sync.NewCond(new(sync.Mutex)),
-		emulator: emulator.NewEmulator(kmsg.Writer),
+		flags:  emulator.ICANON | emulator.ECHO,
+		qCanon: NewCanonical(),
+		cond:   sync.NewCond(new(sync.Mutex)),
 	}
+	c.emulator = emulator.NewEmulator(&inputWriter{
+		c: c,
+	}, kmsg.Writer)
 
 	onKeyboard := js.FuncOf(func(this js.Value, args []js.Value) interface{} {
 		if len(args) < 1 {

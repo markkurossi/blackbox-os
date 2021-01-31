@@ -21,6 +21,7 @@ type RGBA uint32
 const (
 	White = RGBA(0xffffffff)
 	Black = RGBA(0x000000ff)
+	debug = false
 )
 
 var (
@@ -108,6 +109,8 @@ func actCSIParam(e *Emulator, state *State, ch int) {
 
 func actCSI(e *Emulator, state *State, ch int) {
 	switch ch {
+	case 'c':
+		e.Output("\x1b[?62;1;2;7;8;9;15;18;21;44;45;46c")
 	case 'C':
 		e.MoveTo(e.Row, e.Col+1)
 	case 'K':
@@ -270,19 +273,28 @@ type Emulator struct {
 	Lines  [][]Char
 	state  *State
 	params []rune
+	output io.Writer
 	debug  io.Writer
 }
 
-func NewEmulator(debug io.Writer) *Emulator {
+func NewEmulator(output, debug io.Writer) *Emulator {
 	return &Emulator{
-		state: stStart,
-		debug: debug,
+		state:  stStart,
+		output: output,
+		debug:  debug,
 	}
 }
 
 func (e *Emulator) SetState(state *State) {
 	e.state = state
 	e.state.Reset()
+}
+
+func (e *Emulator) Output(format string, a ...interface{}) {
+	if e.output == nil {
+		return
+	}
+	e.output.Write([]byte(fmt.Sprintf(format, a...)))
 }
 
 func (e *Emulator) Debug(format string, a ...interface{}) {
@@ -394,10 +406,15 @@ func (e *Emulator) DeleteChars(row, col, count int) {
 }
 
 func (e *Emulator) Input(code int) {
-	// e.Debug("Emulator.Input: %s<-0x%x", e.state, code)
+	if debug {
+		e.Debug("Emulator.Input: %s<-0x%x,%d,%s", e.state, code, code,
+			string(code))
+	}
 	next := e.state.Input(e, code)
 	if next != nil {
-		// e.Debug("Emulator.Input: %s->%s", e.state, next)
+		if debug {
+			e.Debug("Emulator.Input: %s->%s", e.state, next)
+		}
 		e.SetState(next)
 	}
 }
