@@ -40,8 +40,9 @@ type Char struct {
 type Action func(e *Emulator, state *State, ch int)
 
 func actError(e *Emulator, state *State, ch int) {
-	e.Debug("Emulator error: state=%s, ch=0x%x\n", state, ch)
-	e.state = stStart
+	e.Debug("Emulator error: state=%s, ch=0x%x,%d,%s\n", state, ch, ch,
+		string(ch))
+	e.SetState(stStart)
 }
 
 func actInsertChar(e *Emulator, state *State, ch int) {
@@ -67,8 +68,42 @@ func actC0Control(e *Emulator, state *State, ch int) {
 	}
 }
 
+func actAppendParam(e *Emulator, state *State, ch int) {
+	if len(state.params) == 0 {
+		actNextParam(e, state, ch)
+	}
+	idx := len(state.params) - 1
+	state.params[idx] = append(state.params[idx], rune(ch))
+}
+
+func actNextParam(e *Emulator, state *State, ch int) {
+	state.params = append(state.params, []rune{})
+}
+
 func actCSIParam(e *Emulator, state *State, ch int) {
 	e.params = append(e.params, rune(ch))
+}
+
+func actOSC(e *Emulator, state *State, ch int) {
+	params := state.Params()
+	if len(params) != 2 {
+		e.Debug("OSC: invalid parameters: %v")
+		return
+	}
+	switch params[0] {
+	case "0":
+		e.SetIconName(params[1])
+		e.SetWindowTitle(params[1])
+
+	case "1":
+		e.SetIconName(params[1])
+
+	case "2":
+		e.SetWindowTitle(params[1])
+
+	default:
+		e.Debug("OSC: unsupported control: %v", params)
+	}
 }
 
 func actCSI(e *Emulator, state *State, ch int) {
@@ -105,7 +140,7 @@ func (e *Emulator) parseCSIParam(defaults []int) (string, []int) {
 	matches := reParam.FindStringSubmatch(string(e.params))
 	e.params = nil
 	if matches == nil {
-		return "", nil
+		return "", defaults
 	}
 	for idx, param := range strings.Split(matches[2], ";") {
 		i, err := strconv.Atoi(param)
@@ -142,11 +177,24 @@ type Transition struct {
 type State struct {
 	Name        string
 	Default     Action
+	params      [][]rune
 	Transitions map[int]*Transition
 }
 
 func (s *State) String() string {
 	return s.Name
+}
+
+func (s *State) Reset() {
+	s.params = nil
+}
+
+func (s *State) Params() []string {
+	var params []string
+	for _, runes := range s.params {
+		params = append(params, string(runes))
+	}
+	return params
 }
 
 func (s *State) AddActions(from, to int, act Action, next *State) {
@@ -192,7 +240,7 @@ var (
 	stESC    = NewState("ESC", actError)
 	stCSI    = NewState("CSI", actError)
 	stESCSeq = NewState("ESCSeq", actError)
-	stOSC    *State
+	stOSC    = NewState("OSC", actError)
 )
 
 func init() {
@@ -201,6 +249,12 @@ func init() {
 	stStart.AddActions(0x1b, 0x1b, nil, stESC)
 
 	stESC.AddActions('[', '[', nil, stCSI)
+	stESC.AddActions(']', ']', nil, stOSC)
+
+	stOSC.AddActions(0x20, 0x7e, actAppendParam, nil)
+	stOSC.AddActions(';', ';', actNextParam, nil)
+	stOSC.AddActions(0x07, 0x07, actOSC, stStart)
+	stOSC.AddActions(0x9c, 0x9c, actOSC, stStart)
 
 	stCSI.AddActions(0x30, 0x3f, actCSIParam, nil)
 	stCSI.AddActions(0x40, 0x7e, actCSI, stStart)
@@ -224,11 +278,24 @@ func NewEmulator(debug io.Writer) *Emulator {
 	}
 }
 
+func (e *Emulator) SetState(state *State) {
+	e.state = state
+	e.state.Reset()
+}
+
 func (e *Emulator) Debug(format string, a ...interface{}) {
 	if e.debug == nil {
 		return
 	}
 	e.debug.Write([]byte(fmt.Sprintf(format, a...)))
+}
+
+func (e *Emulator) SetIconName(name string) {
+	e.Debug("Icon Name: %s", name)
+}
+
+func (e *Emulator) SetWindowTitle(name string) {
+	e.Debug("Window Title: %s", name)
 }
 
 func (e *Emulator) Resize(width, height int) {
@@ -328,7 +395,7 @@ func (e *Emulator) Input(code int) {
 	// e.Debug("Emulator.Input: %s<-0x%x", e.state, code)
 	next := e.state.Input(e, code)
 	if next != nil {
-		// e.Debug("Emulator: %s->%s", e.state, next)
-		e.state = next
+		// e.Debug("Emulator.Input: %s->%s", e.state, next)
+		e.SetState(next)
 	}
 }
