@@ -15,12 +15,12 @@ import (
 	"github.com/markkurossi/backup/lib/crypto/zone"
 	"github.com/markkurossi/backup/lib/storage"
 	"github.com/markkurossi/backup/lib/tree"
-	"github.com/markkurossi/blackbox-os/lib/emulator"
 	"github.com/markkurossi/blackbox-os/lib/file"
+	"github.com/markkurossi/blackbox-os/lib/vt100"
 )
 
 type Process struct {
-	TTY    emulator.TTY
+	TTY    vt100.TTY
 	Stdin  io.Reader
 	Stdout io.Writer
 	Stderr io.Writer
@@ -109,7 +109,7 @@ func (p *Process) ResolvePath(filename string) (Path, error) {
 	return path, nil
 }
 
-func NewProcess(t emulator.TTY, z *zone.Zone) (*Process, error) {
+func NewProcess(t vt100.TTY, z *zone.Zone) (*Process, error) {
 	fs, err := NewFS(z)
 	if err != nil {
 		return nil, err

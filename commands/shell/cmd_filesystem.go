@@ -16,7 +16,7 @@ import (
 
 	"github.com/markkurossi/backup/lib/tree"
 	"github.com/markkurossi/blackbox-os/kernel/process"
-	"github.com/markkurossi/blackbox-os/lib/emulator"
+	"github.com/markkurossi/blackbox-os/lib/vt100"
 )
 
 func init() {
@@ -129,7 +129,7 @@ func listDirShort(p *process.Process, el *tree.Directory) {
 		names = append(names, e.Name)
 	}
 
-	emulator.Tabulate(names, p.Stdout)
+	vt100.Tabulate(names, p.Stdout)
 }
 
 func listDirLong(p *process.Process, el *tree.Directory) {

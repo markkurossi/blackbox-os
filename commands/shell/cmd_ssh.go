@@ -18,7 +18,7 @@ import (
 	"github.com/markkurossi/blackbox-os/kernel/control"
 	"github.com/markkurossi/blackbox-os/kernel/network"
 	"github.com/markkurossi/blackbox-os/kernel/process"
-	"github.com/markkurossi/blackbox-os/lib/emulator"
+	"github.com/markkurossi/blackbox-os/lib/vt100"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -76,7 +76,7 @@ func sshConnection(p *process.Process, user, addr string) error {
 		ssh.PasswordCallback(func() (secret string, err error) {
 			fmt.Fprintf(p.Stdout, "%s@%s's password: ", user, addr)
 			flags := p.TTY.Flags()
-			p.TTY.SetFlags(flags & ^emulator.ECHO)
+			p.TTY.SetFlags(flags & ^vt100.ECHO)
 			defer p.TTY.SetFlags(flags)
 			passwd := readLine(p.Stdin)
 			return passwd, nil
@@ -133,7 +133,7 @@ func sshConnection(p *process.Process, user, addr string) error {
 
 	// Enable raw mode for input.
 	flags := p.TTY.Flags()
-	p.TTY.SetFlags(flags & ^(emulator.ICANON | emulator.ECHO))
+	p.TTY.SetFlags(flags & ^(vt100.ICANON | vt100.ECHO))
 	defer p.TTY.SetFlags(flags)
 
 	go io.Copy(stdin, p.Stdin)

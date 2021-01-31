@@ -22,8 +22,8 @@ import (
 	"github.com/markkurossi/blackbox-os/kernel/control"
 	"github.com/markkurossi/blackbox-os/kernel/process"
 	"github.com/markkurossi/blackbox-os/lib/bbos"
-	"github.com/markkurossi/blackbox-os/lib/emulator"
 	"github.com/markkurossi/blackbox-os/lib/file"
+	"github.com/markkurossi/blackbox-os/lib/vt100"
 )
 
 type Builtin struct {
@@ -115,7 +115,7 @@ func readLine(in io.Reader) string {
 }
 
 func Shell(p *process.Process) error {
-	rl := emulator.NewReadline(p.TTY)
+	rl := vt100.NewReadline(p.TTY)
 	rl.Tab = func(line string) (string, []string) {
 		return tabCompletion(p, line)
 	}

@@ -17,7 +17,7 @@ import (
 
 	"github.com/markkurossi/blackbox-os/kernel/control"
 	"github.com/markkurossi/blackbox-os/kernel/kmsg"
-	"github.com/markkurossi/blackbox-os/lib/emulator"
+	"github.com/markkurossi/blackbox-os/lib/vt100"
 )
 
 var (
@@ -62,11 +62,11 @@ const (
 )
 
 type Console struct {
-	flags     emulator.TTYFlags
+	flags     vt100.TTYFlags
 	qCanon    *Canonical
 	qNonCanon []byte
 	cond      *sync.Cond
-	emulator  *emulator.Emulator
+	emulator  *vt100.Emulator
 }
 
 // Canonical provides canonical input mode with Emacs-like line
@@ -212,11 +212,11 @@ func NewCanonical() *Canonical {
 	}
 }
 
-func (c *Console) Flags() emulator.TTYFlags {
+func (c *Console) Flags() vt100.TTYFlags {
 	return c.flags
 }
 
-func (c *Console) SetFlags(flags emulator.TTYFlags) {
+func (c *Console) SetFlags(flags vt100.TTYFlags) {
 	c.flags = flags
 }
 
@@ -267,7 +267,7 @@ func (c *Console) Read(p []byte) (int, error) {
 
 	var n int
 
-	if (c.flags & emulator.ICANON) != 0 {
+	if (c.flags & vt100.ICANON) != 0 {
 		for len(c.qCanon.avail) == 0 {
 			c.cond.Wait()
 		}
@@ -362,7 +362,7 @@ func (c *Console) OnKeyEvent(evType, key string, keyCode int, ctrl bool) {
 func (c *Console) onKey(kt KeyType, code rune) {
 	c.cond.L.Lock()
 
-	if (c.flags & emulator.ICANON) != 0 {
+	if (c.flags & vt100.ICANON) != 0 {
 		if c.qCanon.input(c, kt, code) {
 			c.emulator.MoveTo(c.emulator.Row+1, 0)
 			c.cond.Broadcast()
@@ -376,7 +376,7 @@ func (c *Console) onKey(kt KeyType, code rune) {
 }
 
 func (c *Console) Echo(code []int) {
-	if (c.flags & emulator.ECHO) != 0 {
+	if (c.flags & vt100.ECHO) != 0 {
 		for _, co := range code {
 			c.emulator.Input(co)
 		}
@@ -396,13 +396,13 @@ func (iw *inputWriter) Write(p []byte) (int, error) {
 	return len(p), nil
 }
 
-func NewConsole() emulator.TTY {
+func NewConsole() vt100.TTY {
 	c := &Console{
-		flags:  emulator.ICANON | emulator.ECHO,
+		flags:  vt100.ICANON | vt100.ECHO,
 		qCanon: NewCanonical(),
 		cond:   sync.NewCond(new(sync.Mutex)),
 	}
-	c.emulator = emulator.NewEmulator(&inputWriter{
+	c.emulator = vt100.NewEmulator(&inputWriter{
 		c: c,
 	}, kmsg.Writer)
 

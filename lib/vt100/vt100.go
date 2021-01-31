@@ -6,7 +6,7 @@
 // All rights reserved.
 //
 
-package emulator
+package vt100
 
 import (
 	"fmt"
