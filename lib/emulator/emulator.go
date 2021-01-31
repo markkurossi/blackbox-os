@@ -80,10 +80,6 @@ func actNextParam(e *Emulator, state *State, ch int) {
 	state.params = append(state.params, []rune{})
 }
 
-func actCSIParam(e *Emulator, state *State, ch int) {
-	e.params = append(e.params, rune(ch))
-}
-
 func actOSC(e *Emulator, state *State, ch int) {
 	params := state.Params()
 	if len(params) != 2 {
@@ -104,6 +100,10 @@ func actOSC(e *Emulator, state *State, ch int) {
 	default:
 		e.Debug("OSC: unsupported control: %v", params)
 	}
+}
+
+func actCSIParam(e *Emulator, state *State, ch int) {
+	e.params = append(e.params, rune(ch))
 }
 
 func actCSI(e *Emulator, state *State, ch int) {
@@ -130,8 +130,10 @@ func actCSI(e *Emulator, state *State, ch int) {
 			e.Clear()
 		}
 	default:
-		e.Debug("actCSI: %s: 0x%x\n", state, ch)
+		e.Debug("actCSI: %s 0x%x\n", string(e.params), ch)
 	}
+
+	e.params = nil
 }
 
 var reParam = regexp.MustCompilePOSIX("^([^0-9;:]*)([0-9;:]*)$")
