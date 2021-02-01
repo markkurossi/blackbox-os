@@ -1,7 +1,7 @@
 //
 // emulator.go
 //
-// Copyright (c) 2018 Markku Rossi
+// Copyright (c) 2018-2021 Markku Rossi
 //
 // All rights reserved.
 //
@@ -70,15 +70,7 @@ func actC0Control(e *Emulator, state *State, ch int) {
 }
 
 func actAppendParam(e *Emulator, state *State, ch int) {
-	if len(state.params) == 0 {
-		actNextParam(e, state, ch)
-	}
-	idx := len(state.params) - 1
-	state.params[idx] = append(state.params[idx], rune(ch))
-}
-
-func actNextParam(e *Emulator, state *State, ch int) {
-	state.params = append(state.params, []rune{})
+	state.params = append(state.params, rune(ch))
 }
 
 func actOSC(e *Emulator, state *State, ch int) {
@@ -103,10 +95,6 @@ func actOSC(e *Emulator, state *State, ch int) {
 	}
 }
 
-func actCSIParam(e *Emulator, state *State, ch int) {
-	e.params = append(e.params, rune(ch))
-}
-
 func actCSI(e *Emulator, state *State, ch int) {
 	switch ch {
 	case 'c':
@@ -120,10 +108,10 @@ func actCSI(e *Emulator, state *State, ch int) {
 		// XXX intermediate: how many characters to delete
 		e.DeleteChars(e.Row, e.Col, 1)
 	case 'H': // Cursor position.
-		row, col := e.csiParams(1, 1)
+		row, col := state.CSIParams(1, 1)
 		e.MoveTo(row-1, col-1)
 	case 'J': // Erase in Display (cursor does not move)
-		switch e.csiParam(0) {
+		switch state.CSIParam(0) {
 		case 0: // Erase from current position to end (inclusive)
 			// XXX
 			e.Clear()
@@ -133,17 +121,48 @@ func actCSI(e *Emulator, state *State, ch int) {
 			e.Clear()
 		}
 	default:
-		e.Debug("actCSI: %s 0x%x\n", string(e.params), ch)
+		e.Debug("actCSI: %s 0x%x\n", string(state.params), ch)
 	}
+}
 
-	e.params = nil
+type Transition struct {
+	Action Action
+	Next   *State
+}
+
+type State struct {
+	Name        string
+	Default     Action
+	params      []rune
+	Transitions map[int]*Transition
+}
+
+func (s *State) String() string {
+	return s.Name
+}
+
+func (s *State) Reset() {
+	s.params = nil
+}
+
+func (s *State) Params() []string {
+	return strings.Split(string(s.params), ";")
+}
+
+func (s *State) CSIParam(a int) int {
+	_, values := s.parseCSIParam([]int{a})
+	return values[0]
+}
+
+func (s *State) CSIParams(a, b int) (int, int) {
+	_, values := s.parseCSIParam([]int{a, b})
+	return values[0], values[1]
 }
 
 var reParam = regexp.MustCompilePOSIX("^([^0-9;:]*)([0-9;:]*)$")
 
-func (e *Emulator) parseCSIParam(defaults []int) (string, []int) {
-	matches := reParam.FindStringSubmatch(string(e.params))
-	e.params = nil
+func (s *State) parseCSIParam(defaults []int) (string, []int) {
+	matches := reParam.FindStringSubmatch(string(s.params))
 	if matches == nil {
 		return "", defaults
 	}
@@ -162,44 +181,6 @@ func (e *Emulator) parseCSIParam(defaults []int) (string, []int) {
 	}
 
 	return matches[1], defaults
-}
-
-func (e *Emulator) csiParam(a int) int {
-	_, values := e.parseCSIParam([]int{a})
-	return values[0]
-}
-
-func (e *Emulator) csiParams(a, b int) (int, int) {
-	_, values := e.parseCSIParam([]int{a, b})
-	return values[0], values[1]
-}
-
-type Transition struct {
-	Action Action
-	Next   *State
-}
-
-type State struct {
-	Name        string
-	Default     Action
-	params      [][]rune
-	Transitions map[int]*Transition
-}
-
-func (s *State) String() string {
-	return s.Name
-}
-
-func (s *State) Reset() {
-	s.params = nil
-}
-
-func (s *State) Params() []string {
-	var params []string
-	for _, runes := range s.params {
-		params = append(params, string(runes))
-	}
-	return params
 }
 
 func (s *State) AddActions(from, to int, act Action, next *State) {
@@ -257,11 +238,10 @@ func init() {
 	stESC.AddActions(']', ']', nil, stOSC)
 
 	stOSC.AddActions(0x20, 0x7e, actAppendParam, nil)
-	stOSC.AddActions(';', ';', actNextParam, nil)
 	stOSC.AddActions(0x07, 0x07, actOSC, stStart)
 	stOSC.AddActions(0x9c, 0x9c, actOSC, stStart)
 
-	stCSI.AddActions(0x30, 0x3f, actCSIParam, nil)
+	stCSI.AddActions(0x30, 0x3f, actAppendParam, nil)
 	stCSI.AddActions(0x40, 0x7e, actCSI, stStart)
 }
 
@@ -272,7 +252,6 @@ type Emulator struct {
 	Row    int
 	Lines  [][]Char
 	state  *State
-	params []rune
 	output io.Writer
 	debug  io.Writer
 }
