@@ -1,7 +1,7 @@
 //
 // tty.go
 //
-// Copyright (c) 2018 Markku Rossi
+// Copyright (c) 2018-2021 Markku Rossi
 //
 // All rights reserved.
 //

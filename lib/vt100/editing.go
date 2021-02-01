@@ -1,7 +1,7 @@
 //
 // vt100.go
 //
-// Copyright (c) 2018, 2019 Markku Rossi
+// Copyright (c) 2018-2021 Markku Rossi
 //
 // All rights reserved.
 //
@@ -13,52 +13,52 @@ import (
 	"io"
 )
 
-func VT100CursorForward(out io.Writer) error {
+func CursorForward(out io.Writer) error {
 	_, err := out.Write([]byte{0x1b, '[', 'C'})
 	return err
 }
 
-func VT100Backspace(out io.Writer) error {
+func Backspace(out io.Writer) error {
 	_, err := out.Write([]byte{0x08})
 	return err
 }
 
-func VT100DeleteChar(out io.Writer) error {
+func DeleteChar(out io.Writer) error {
 	_, err := out.Write([]byte{0x1b, '[', 'P'})
 	return err
 }
 
-func VT100EraseLineHead(out io.Writer) error {
+func EraseLineHead(out io.Writer) error {
 	_, err := out.Write([]byte{0x1b, '[', '1', 'K'})
 	return err
 }
 
-func VT100EraseLineTail(out io.Writer) error {
+func EraseLineTail(out io.Writer) error {
 	_, err := out.Write([]byte{0x1b, '[', 'K'})
 	return err
 }
 
-func VT100EraseLine(out io.Writer) error {
+func EraseLine(out io.Writer) error {
 	_, err := out.Write([]byte{0x1b, '[', '2', 'K'})
 	return err
 }
 
-func VT100EraseScreenHead(out io.Writer) error {
+func EraseScreenHead(out io.Writer) error {
 	_, err := out.Write([]byte{0x1b, '[', '1', 'J'})
 	return err
 }
 
-func VT100EraseScreenTail(out io.Writer) error {
+func EraseScreenTail(out io.Writer) error {
 	_, err := out.Write([]byte{0x1b, '[', 'J'})
 	return err
 }
 
-func VT100EraseScreen(out io.Writer) error {
+func EraseScreen(out io.Writer) error {
 	_, err := out.Write([]byte{0x1b, '[', '2', 'J'})
 	return err
 }
 
-func VT100MoveTo(out io.Writer, row, col int) error {
+func MoveTo(out io.Writer, row, col int) error {
 	_, err := out.Write([]byte(fmt.Sprintf("\x1b[%d;%dH", row, col)))
 	return err
 }

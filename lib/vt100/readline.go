@@ -1,7 +1,7 @@
 //
 // readline.go
 //
-// Copyright (c) 2018-2019 Markku Rossi
+// Copyright (c) 2018-2021 Markku Rossi
 //
 // All rights reserved.
 //
@@ -60,7 +60,7 @@ func (rl *Readline) input(b byte, prompt string) bool {
 	switch b {
 	case 0x01: // C-a
 		for rl.cursor > 0 {
-			VT100Backspace(rl.tty)
+			Backspace(rl.tty)
 			rl.cursor--
 		}
 
@@ -69,7 +69,7 @@ func (rl *Readline) input(b byte, prompt string) bool {
 
 	case 0x04: // C-d
 		if rl.cursor < rl.tail {
-			VT100DeleteChar(rl.tty)
+			DeleteChar(rl.tty)
 			rl.cursor++
 			rl.delete()
 		}
@@ -88,10 +88,10 @@ func (rl *Readline) input(b byte, prompt string) bool {
 
 			// Line contains expanded line.
 			for rl.cursor > 0 {
-				VT100Backspace(rl.tty)
+				Backspace(rl.tty)
 				rl.cursor--
 			}
-			VT100EraseLineTail(rl.tty)
+			EraseLineTail(rl.tty)
 
 			l := []byte(line)
 			rl.tail = copy(rl.buf, l)
@@ -110,11 +110,11 @@ func (rl *Readline) input(b byte, prompt string) bool {
 
 	case 0x0b: // C-k
 		rl.tail = rl.cursor
-		VT100EraseLineTail(rl.tty)
+		EraseLineTail(rl.tty)
 
 	case 0x0c: // C-l
-		VT100EraseScreen(rl.tty)
-		VT100MoveTo(rl.tty, 0, 0)
+		EraseScreen(rl.tty)
+		MoveTo(rl.tty, 0, 0)
 		fmt.Fprintf(rl.tty, "%s", prompt)
 		rl.tty.Write(rl.buf[:rl.tail])
 
@@ -122,11 +122,11 @@ func (rl *Readline) input(b byte, prompt string) bool {
 		if rl.cursor == 0 {
 			break
 		}
-		VT100Backspace(rl.tty)
+		Backspace(rl.tty)
 		if rl.cursor == rl.tail {
-			VT100EraseLineTail(rl.tty)
+			EraseLineTail(rl.tty)
 		} else {
-			VT100DeleteChar(rl.tty)
+			DeleteChar(rl.tty)
 		}
 		rl.delete()
 
@@ -142,7 +142,7 @@ func (rl *Readline) input(b byte, prompt string) bool {
 
 			// Move cursor back to its position.
 			for i := rl.tail; i > rl.cursor; i-- {
-				VT100Backspace(rl.tty)
+				Backspace(rl.tty)
 			}
 		} else {
 			fmt.Printf("Skipping non-printable 0x%x\n", b)
@@ -153,14 +153,14 @@ func (rl *Readline) input(b byte, prompt string) bool {
 
 func (rl *Readline) cursorLeft() {
 	if rl.cursor > 0 {
-		VT100Backspace(rl.tty)
+		Backspace(rl.tty)
 		rl.cursor--
 	}
 }
 
 func (rl *Readline) cursorRight() {
 	if rl.cursor < rl.tail {
-		VT100CursorForward(rl.tty)
+		CursorForward(rl.tty)
 		rl.cursor++
 	}
 }
