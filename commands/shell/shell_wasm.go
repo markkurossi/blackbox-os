@@ -1,7 +1,7 @@
 //
 // shell.go
 //
-// Copyright (c) 2018-2019 Markku Rossi
+// Copyright (c) 2018-2021 Markku Rossi
 //
 // All rights reserved.
 //
@@ -20,6 +20,7 @@ import (
 
 	"github.com/markkurossi/backup/lib/tree"
 	"github.com/markkurossi/blackbox-os/kernel/control"
+	"github.com/markkurossi/blackbox-os/kernel/kmsg"
 	"github.com/markkurossi/blackbox-os/kernel/process"
 	"github.com/markkurossi/blackbox-os/lib/bbos"
 	"github.com/markkurossi/blackbox-os/lib/file"
@@ -115,7 +116,7 @@ func readLine(in io.Reader) string {
 }
 
 func Shell(p *process.Process) error {
-	rl := vt100.NewReadline(p.TTY)
+	rl := vt100.NewReadline(p.TTY, kmsg.Writer)
 	rl.Tab = func(line string) (string, []string) {
 		return tabCompletion(p, line)
 	}

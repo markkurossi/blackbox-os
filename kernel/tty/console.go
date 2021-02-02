@@ -1,7 +1,7 @@
 //
 // console.go
 //
-// Copyright (c) 2018-2019 Markku Rossi
+// Copyright (c) 2018-2021 Markku Rossi
 //
 // All rights reserved.
 //
@@ -9,8 +9,8 @@
 package tty
 
 import (
+	"bytes"
 	"fmt"
-	"log"
 	"sync"
 	"syscall/js"
 	"unicode"
@@ -82,7 +82,7 @@ func (in *Canonical) input(c *Console, kt KeyType, code rune) bool {
 
 	switch kt {
 	case KeyCode:
-		kmsg.Print(fmt.Sprintf("input(KeyCode, 0x%x)\n", code))
+		kmsg.Printf("input(KeyCode, 0x%x)\n", code)
 		switch code {
 		case 0x01: // C-a
 			for in.cursor > 0 {
@@ -151,7 +151,7 @@ func (in *Canonical) input(c *Console, kt KeyType, code rune) bool {
 					}
 				}
 			} else {
-				kmsg.Print(fmt.Sprintf("Skipping non-printable 0x%x\n", code))
+				kmsg.Printf("console: skipping non-printable 0x%x\n", code)
 			}
 		}
 
@@ -307,7 +307,7 @@ func (c *Console) OnKeyEvent(evType, key string, keyCode int, ctrl bool) {
 		return
 	}
 	if false {
-		log.Printf("%s: key=%s, keyCode=%d, ctrlKey=%v\n",
+		kmsg.Printf("%s: key=%s, keyCode=%d, ctrlKey=%v\n",
 			evType, key, keyCode, ctrl)
 	}
 
@@ -361,6 +361,7 @@ func (c *Console) OnKeyEvent(evType, key string, keyCode int, ctrl bool) {
 
 func (c *Console) onKey(kt KeyType, code rune) {
 	c.cond.L.Lock()
+	defer c.cond.L.Unlock()
 
 	if (c.flags & vt100.ICANON) != 0 {
 		if c.qCanon.input(c, kt, code) {
@@ -368,11 +369,37 @@ func (c *Console) onKey(kt KeyType, code rune) {
 			c.cond.Broadcast()
 		}
 	} else {
-		c.qNonCanon = append(c.qNonCanon, []byte(string(code))...)
+		input := new(bytes.Buffer)
+
+		switch kt {
+		case KeyCode:
+			input.Write([]byte(string(code)))
+
+		case KeyCursorUp:
+			vt100.CursorUp(input)
+
+		case KeyCursorDown:
+			vt100.CursorDown(input)
+
+		case KeyCursorLeft:
+			vt100.CursorBackward(input)
+
+		case KeyCursorRight:
+			vt100.CursorForward(input)
+
+		case KeyPageUp:
+			vt100.ScrollUp(input)
+
+		case KeyPageDown:
+			vt100.ScrollDown(input)
+
+		case KeyHome, KeyEnd:
+			kmsg.Printf("onKey: %s not supported", kt)
+			return
+		}
+		c.qNonCanon = append(c.qNonCanon, input.Bytes()...)
 		c.cond.Broadcast()
 	}
-
-	c.cond.L.Unlock()
 }
 
 func (c *Console) Echo(code []int) {

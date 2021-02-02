@@ -10,23 +10,29 @@ package vt100
 
 import (
 	"fmt"
+	"io"
 	"unicode"
 )
 
 type TabCompletion func(line string) (expanded string, completions []string)
+type state func(rl *Readline, b byte, prompt string) bool
 
 type Readline struct {
 	Tab    TabCompletion
 	tty    TTY
+	stderr io.Writer
 	buf    []byte
+	state  state
 	cursor int
 	tail   int
 }
 
-func NewReadline(tty TTY) *Readline {
+func NewReadline(tty TTY, stderr io.Writer) *Readline {
 	return &Readline{
-		tty: tty,
-		buf: make([]byte, 1024),
+		tty:    tty,
+		stderr: stderr,
+		buf:    make([]byte, 1024),
+		state:  rlStart,
 	}
 }
 
@@ -57,7 +63,15 @@ func (rl *Readline) line() string {
 }
 
 func (rl *Readline) input(b byte, prompt string) bool {
+	return rl.state(rl, b, prompt)
+}
+
+func rlStart(rl *Readline, b byte, prompt string) bool {
 	switch b {
+	case 0x1b: // ESC
+		rl.state = rlESC
+		return false
+
 	case 0x01: // C-a
 		for rl.cursor > 0 {
 			Backspace(rl.tty)
@@ -145,9 +159,34 @@ func (rl *Readline) input(b byte, prompt string) bool {
 				Backspace(rl.tty)
 			}
 		} else {
-			fmt.Printf("Skipping non-printable 0x%x\n", b)
+			fmt.Fprintf(rl.stderr, "readline: skipping non-printable 0x%x\n", b)
 		}
 	}
+	return false
+}
+
+func rlESC(rl *Readline, b byte, prompt string) bool {
+	switch b {
+	case '[':
+		rl.state = rlCSI
+
+	default:
+		fmt.Fprintf(rl.stderr, "readline: ESC: unsupported: b=0x%x", b)
+		rl.state = rlStart
+	}
+	return false
+}
+
+func rlCSI(rl *Readline, b byte, prompt string) bool {
+	switch b {
+	case 'C':
+		rl.cursorRight()
+	case 'D':
+		rl.cursorLeft()
+	default:
+		fmt.Fprintf(rl.stderr, "readline: CSI: unsupported: b=0x%x", b)
+	}
+	rl.state = rlStart
 	return false
 }
 

@@ -13,8 +13,33 @@ import (
 	"io"
 )
 
+func CursorUp(out io.Writer) error {
+	_, err := out.Write([]byte{0x1b, '[', 'A'})
+	return err
+}
+
+func CursorDown(out io.Writer) error {
+	_, err := out.Write([]byte{0x1b, '[', 'B'})
+	return err
+}
+
 func CursorForward(out io.Writer) error {
 	_, err := out.Write([]byte{0x1b, '[', 'C'})
+	return err
+}
+
+func CursorBackward(out io.Writer) error {
+	_, err := out.Write([]byte{0x1b, '[', 'D'})
+	return err
+}
+
+func ScrollUp(out io.Writer) error {
+	_, err := out.Write([]byte{0x1b, '[', 'S'})
+	return err
+}
+
+func ScrollDown(out io.Writer) error {
+	_, err := out.Write([]byte{0x1b, '[', 'T'})
 	return err
 }
 
