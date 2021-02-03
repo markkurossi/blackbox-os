@@ -14,6 +14,7 @@ import (
 	"sync"
 	"syscall/js"
 	"unicode"
+	"unicode/utf8"
 
 	"github.com/markkurossi/blackbox-os/kernel/control"
 	"github.com/markkurossi/blackbox-os/kernel/kmsg"
@@ -62,11 +63,12 @@ const (
 )
 
 type Console struct {
-	flags     vt100.TTYFlags
-	qCanon    *Canonical
-	qNonCanon []byte
-	cond      *sync.Cond
-	emulator  *vt100.Emulator
+	flags       vt100.TTYFlags
+	qCanon      *Canonical
+	qNonCanon   []byte
+	cond        *sync.Cond
+	encodingBuf []byte
+	emulator    *vt100.Emulator
 }
 
 // Canonical provides canonical input mode with Emacs-like line
@@ -288,13 +290,20 @@ func (c *Console) Read(p []byte) (int, error) {
 
 // Write implements the io.Writer interface.
 func (c *Console) Write(p []byte) (int, error) {
-	var last byte
-	for _, b := range p {
-		if b == '\n' && last != '\r' {
+	c.encodingBuf = append(c.encodingBuf, p...)
+
+	var last rune
+	for len(c.encodingBuf) > 0 {
+		r, size := utf8.DecodeRune(c.encodingBuf)
+		if r == utf8.RuneError {
+			break
+		}
+		c.encodingBuf = c.encodingBuf[size:]
+		if r == '\n' && last != '\r' {
 			c.emulator.Input('\r')
 		}
-		c.emulator.Input(int(b))
-		last = b
+		c.emulator.Input(int(r))
+		last = r
 	}
 
 	c.Flush()
