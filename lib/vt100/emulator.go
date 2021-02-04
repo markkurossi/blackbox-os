@@ -96,7 +96,7 @@ func actOSC(e *Emulator, state *State, ch int) {
 }
 
 func actCSI(e *Emulator, state *State, ch int) {
-	if debug || true {
+	if debug {
 		e.Debug("actCSI: ESC[%s%s (0x%x)", string(state.params),
 			string(rune(ch)), ch)
 	}
@@ -104,8 +104,22 @@ func actCSI(e *Emulator, state *State, ch int) {
 	case '@': // ICH - Insert CHaracter
 		e.InsertChars(e.Row, e.Col, state.CSIParam(1))
 
+	case 'A': // CUU - CUrsor Up
+		e.MoveTo(e.Row-state.CSIParam(1), e.Col)
+
+	case 'B': // CUD - CUrsor Down
+		row := e.Row + state.CSIParam(1)
+		if row >= e.Height {
+			row = e.Height - 1
+		}
+		e.MoveTo(row, e.Col)
+
 	case 'C': // CUF - CUrsor Forward
-		e.MoveTo(e.Row, e.Col+1)
+		e.MoveTo(e.Row, e.Col+state.CSIParam(1))
+
+	case 'D': // CUB - CUrsor Backward
+		e.MoveTo(e.Row, e.Col-state.CSIParam(1))
+
 	case 'K': // EL  - Erase in Line (cursor does not move)
 		switch state.CSIParam(0) {
 		case 0:
@@ -115,11 +129,14 @@ func actCSI(e *Emulator, state *State, ch int) {
 		case 2:
 			e.ClearLine(e.Row, 0, e.Width)
 		}
+
 	case 'P':
 		e.DeleteChars(e.Row, e.Col, state.CSIParam(1))
-	case 'H': // Cursor position.
+
+	case 'H': // CUP - CUrsor Position
 		_, row, col := state.CSIParams(1, 1)
 		e.MoveTo(row-1, col-1)
+
 	case 'J': // Erase in Display (cursor does not move)
 		switch state.CSIParam(0) {
 		case 0: // Erase from current position to end (inclusive)
@@ -130,8 +147,14 @@ func actCSI(e *Emulator, state *State, ch int) {
 		case 2: // Erase entire display
 			e.Clear()
 		}
+
 	case 'c':
 		e.Output("\x1b[?62;1;2;7;8;9;15;18;21;44;45;46c")
+
+	case 'f': // HVP - Horizontal and Vertical Position (depends on PUM)
+		_, row, col := state.CSIParams(1, 1)
+		e.MoveTo(row-1, col-1)
+
 	case 'h':
 		prefix, mode := state.CSIPrefixParam(0)
 		switch prefix {
