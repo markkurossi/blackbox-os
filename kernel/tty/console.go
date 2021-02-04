@@ -70,6 +70,7 @@ type Console struct {
 	qNonCanon   []byte
 	cond        *sync.Cond
 	encodingBuf []byte
+	lastRune    rune
 	emulator    *vt100.Emulator
 }
 
@@ -301,18 +302,17 @@ func (c *Console) Read(p []byte) (int, error) {
 func (c *Console) Write(p []byte) (int, error) {
 	c.encodingBuf = append(c.encodingBuf, p...)
 
-	var last rune
 	for utf8.FullRune(c.encodingBuf) {
 		r, size := utf8.DecodeRune(c.encodingBuf)
 		c.encodingBuf = c.encodingBuf[size:]
 		if r == utf8.RuneError {
 			break
 		}
-		if r == '\n' && last != '\r' {
+		if r == '\n' && c.lastRune != '\r' {
 			c.emulator.Input('\r')
 		}
 		c.emulator.Input(int(r))
-		last = r
+		c.lastRune = r
 	}
 
 	c.Flush()
@@ -394,7 +394,7 @@ func (c *Console) onKey(kt KeyType, code rune) {
 			input.Write([]byte(string(code)))
 
 		case KeyEnter:
-			input.Write([]byte{'\r', '\n'})
+			input.Write([]byte{'\r'})
 
 		case KeyCursorUp:
 			vt100.CursorUp(input)

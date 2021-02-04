@@ -145,7 +145,7 @@ func rlStart(rl *Readline, b byte, prompt string) bool {
 		rl.delete()
 
 	default:
-		if b == '\n' {
+		if b == '\n' || b == '\r' {
 			return true
 		}
 		if unicode.IsPrint(rune(b)) {

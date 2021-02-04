@@ -108,7 +108,7 @@ func readLine(in io.Reader) string {
 			break
 		}
 		line += string(buf[:n])
-		if buf[n-1] == '\n' {
+		if buf[n-1] == '\n' || buf[n-1] == '\r' {
 			break
 		}
 	}
