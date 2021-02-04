@@ -96,19 +96,29 @@ func actOSC(e *Emulator, state *State, ch int) {
 }
 
 func actCSI(e *Emulator, state *State, ch int) {
+	if debug || true {
+		e.Debug("actCSI: ESC[%s%s (0x%x)", string(state.params),
+			string(rune(ch)), ch)
+	}
 	switch ch {
-	case 'c':
-		e.Output("\x1b[?62;1;2;7;8;9;15;18;21;44;45;46c")
-	case 'C':
+	case '@': // ICH - Insert CHaracter
+		e.InsertChars(e.Row, e.Col, state.CSIParam(1))
+
+	case 'C': // CUF - CUrsor Forward
 		e.MoveTo(e.Row, e.Col+1)
-	case 'K':
-		// XXX intermediate 0, 1, 2
-		e.ClearLine(e.Row, e.Col, e.Width)
+	case 'K': // EL  - Erase in Line (cursor does not move)
+		switch state.CSIParam(0) {
+		case 0:
+			e.ClearLine(e.Row, e.Col, e.Width)
+		case 1:
+			e.ClearLine(e.Row, 0, e.Col+1)
+		case 2:
+			e.ClearLine(e.Row, 0, e.Width)
+		}
 	case 'P':
-		// XXX intermediate: how many characters to delete
-		e.DeleteChars(e.Row, e.Col, 1)
+		e.DeleteChars(e.Row, e.Col, state.CSIParam(1))
 	case 'H': // Cursor position.
-		row, col := state.CSIParams(1, 1)
+		_, row, col := state.CSIParams(1, 1)
 		e.MoveTo(row-1, col-1)
 	case 'J': // Erase in Display (cursor does not move)
 		switch state.CSIParam(0) {
@@ -120,8 +130,36 @@ func actCSI(e *Emulator, state *State, ch int) {
 		case 2: // Erase entire display
 			e.Clear()
 		}
+	case 'c':
+		e.Output("\x1b[?62;1;2;7;8;9;15;18;21;44;45;46c")
+	case 'h':
+		prefix, mode := state.CSIPrefixParam(0)
+		switch prefix {
+		case "": // Set Mode (SM)
+			switch mode {
+			case 2: // Keyboard Action Mode (AM)
+			case 4: // Insert Mode (IRM)
+			case 12: // Send/receive (SRM)
+			case 20: // Automatic Newline (LNM)
+
+			default:
+				e.Debug("Set Mode (SM): unknown mode %d", mode)
+			}
+
+		case "?":
+			switch mode {
+			case 1034: // Interpret "meta" key, sets eight bit (eightBitInput)
+
+			default:
+				e.Debug("Unsupported ESC[%sh", string(state.params))
+			}
+		}
+		_ = prefix
+		_ = mode
+
 	default:
-		e.Debug("actCSI: %s 0x%x\n", string(state.params), ch)
+		e.Debug("actCSI: unsupported: ESC[%s%s (0x%x)\n", string(state.params),
+			string(rune(ch)), ch)
 	}
 }
 
@@ -154,9 +192,14 @@ func (s *State) CSIParam(a int) int {
 	return values[0]
 }
 
-func (s *State) CSIParams(a, b int) (int, int) {
-	_, values := s.parseCSIParam([]int{a, b})
-	return values[0], values[1]
+func (s *State) CSIPrefixParam(a int) (string, int) {
+	prefix, values := s.parseCSIParam([]int{a})
+	return prefix, values[0]
+}
+
+func (s *State) CSIParams(a, b int) (string, int, int) {
+	prefix, values := s.parseCSIParam([]int{a, b})
+	return prefix, values[0], values[1]
 }
 
 var reParam = regexp.MustCompilePOSIX("^([^0-9;:]*)([0-9;:]*)$")
@@ -310,6 +353,9 @@ func (e *Emulator) ClearLine(line, from, to int) {
 	if line < 0 || line >= e.Height {
 		return
 	}
+	if to > e.Width {
+		to = e.Width
+	}
 	for i := from; i < to; i++ {
 		e.Lines[line][i] = blank
 	}
@@ -370,6 +416,30 @@ func (e *Emulator) InsertChar(code int) {
 		Background: White,
 	}
 	e.MoveTo(e.Row, e.Col+1)
+}
+
+func (e *Emulator) InsertChars(row, col, count int) {
+	if row < 0 {
+		row = 0
+	} else if row >= e.Height {
+		row = e.Height - 1
+	}
+	if col < 0 {
+		col = 0
+	} else if col >= e.Width {
+		return
+	}
+	if col+count >= e.Width {
+		e.ClearLine(row, col, e.Width)
+		return
+	}
+	for x := e.Width - 1; x >= col; x-- {
+		if x-count >= col {
+			e.Lines[row][x] = e.Lines[row][x-count]
+		} else {
+			e.Lines[row][x] = blank
+		}
+	}
 }
 
 func (e *Emulator) DeleteChars(row, col, count int) {

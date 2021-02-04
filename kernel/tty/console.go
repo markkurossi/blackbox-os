@@ -32,6 +32,7 @@ type KeyType int
 
 var keyTypeNames = map[KeyType]string{
 	KeyCode:        "Code",
+	KeyEnter:       "Enter",
 	KeyCursorUp:    "CursorUp",
 	KeyCursorDown:  "CursorDown",
 	KeyCursorLeft:  "CursorLeft",
@@ -52,6 +53,7 @@ func (t KeyType) String() string {
 
 const (
 	KeyCode KeyType = iota
+	KeyEnter
 	KeyCursorUp
 	KeyCursorDown
 	KeyCursorLeft
@@ -84,7 +86,6 @@ func (in *Canonical) input(c *Console, kt KeyType, code rune) bool {
 
 	switch kt {
 	case KeyCode:
-		kmsg.Printf("input(KeyCode, 0x%x)\n", code)
 		switch code {
 		case 0x01: // C-a
 			for in.cursor > 0 {
@@ -135,10 +136,7 @@ func (in *Canonical) input(c *Console, kt KeyType, code rune) bool {
 
 		default:
 			if code == '\n' {
-				in.avail = append(in.avail, []byte(string(in.buf[:in.tail]))...)
-				in.avail = append(in.avail, '\n')
-				in.cursor = 0
-				in.tail = 0
+				in.newline()
 				return true
 			}
 			if unicode.IsPrint(rune(code)) {
@@ -157,6 +155,10 @@ func (in *Canonical) input(c *Console, kt KeyType, code rune) bool {
 			}
 		}
 
+	case KeyEnter:
+		in.newline()
+		return true
+
 	case KeyCursorLeft:
 		in.cursorLeft(c)
 
@@ -164,6 +166,13 @@ func (in *Canonical) input(c *Console, kt KeyType, code rune) bool {
 		in.cursorRight(c)
 	}
 	return false
+}
+
+func (in *Canonical) newline() {
+	in.avail = append(in.avail, []byte(string(in.buf[:in.tail]))...)
+	in.avail = append(in.avail, '\n')
+	in.cursor = 0
+	in.tail = 0
 }
 
 func (in *Canonical) cursorLeft(c *Console) {
@@ -293,12 +302,12 @@ func (c *Console) Write(p []byte) (int, error) {
 	c.encodingBuf = append(c.encodingBuf, p...)
 
 	var last rune
-	for len(c.encodingBuf) > 0 {
+	for utf8.FullRune(c.encodingBuf) {
 		r, size := utf8.DecodeRune(c.encodingBuf)
+		c.encodingBuf = c.encodingBuf[size:]
 		if r == utf8.RuneError {
 			break
 		}
-		c.encodingBuf = c.encodingBuf[size:]
 		if r == '\n' && last != '\r' {
 			c.emulator.Input('\r')
 		}
@@ -337,7 +346,7 @@ func (c *Console) OnKeyEvent(evType, key string, keyCode int, ctrl bool) {
 	} else {
 		switch key {
 		case "Enter":
-			c.onKey(KeyCode, rune(0x0a))
+			c.onKey(KeyEnter, 0)
 		case "Backspace":
 			c.onKey(KeyCode, rune(0x7f))
 		case "Tab":
@@ -383,6 +392,9 @@ func (c *Console) onKey(kt KeyType, code rune) {
 		switch kt {
 		case KeyCode:
 			input.Write([]byte(string(code)))
+
+		case KeyEnter:
+			input.Write([]byte{'\r', '\n'})
 
 		case KeyCursorUp:
 			vt100.CursorUp(input)
