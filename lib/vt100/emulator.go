@@ -50,8 +50,14 @@ func actInsertChar(e *Emulator, state *State, ch int) {
 	e.InsertChar(ch)
 }
 
+func actInsertSpace(e *Emulator, state *State, ch int) {
+	e.InsertChar(' ')
+}
+
 func actC0Control(e *Emulator, state *State, ch int) {
 	switch ch {
+	case 0x08: // BS
+		e.MoveTo(e.Row, e.Col-1)
 	case 0x09: // Horizontal Tabulation.
 		var x = e.Col + 1
 		for ; x%8 != 0; x++ {
@@ -61,16 +67,51 @@ func actC0Control(e *Emulator, state *State, ch int) {
 		e.MoveTo(e.Row+1, e.Col)
 	case 0x0d: // Carriage Return
 		e.MoveTo(e.Row, 0)
-	case 0x08: // BS
-		e.MoveTo(e.Row, e.Col-1)
 
 	default:
-		e.Debug("actC0Control: %s: %x\n", state, ch)
+		e.Debug("actC0Control: %s: %s0x%x\n", state, string(state.params), ch)
+	}
+}
+
+func actC1Control(e *Emulator, state *State, ch int) {
+	switch 0x40 + ch {
+	case 0x84: // Index, moves down one line same column regardless of NL
+		e.MoveTo(e.Row+1, e.Col)
+	case 0x85: // NEw Line, moves done one line and to first column (CR+LF)
+		e.MoveTo(e.Row+1, 0)
+	case 0x8d: // Reverse Index, go up one line, reverse scroll if necessary
+		e.MoveTo(e.Row-1, e.Col)
+	default:
+		e.Debug("actC1Control: %s: %s0x%x\n", state, string(state.params), ch)
 	}
 }
 
 func actAppendParam(e *Emulator, state *State, ch int) {
 	state.params = append(state.params, rune(ch))
+}
+
+func actPrivateFunction(e *Emulator, state *State, ch int) {
+	switch ch {
+	case '8':
+		switch string(state.params) {
+		case "#": // DECALN - Alignment display, fill screen with "E"
+			for row := 0; row < e.Height; row++ {
+				for col := 0; col < e.Width; col++ {
+					e.Lines[row][col] = Char{
+						Code:       'E',
+						Foreground: Black,
+						Background: White,
+					}
+				}
+			}
+
+		default:
+			e.Debug("actPrivateFunction: %s%c", string(state.params), ch)
+		}
+
+	default:
+		e.Debug("actPrivateFunction: %s%c", string(state.params), ch)
+	}
 }
 
 func actOSC(e *Emulator, state *State, ch int) {
@@ -97,8 +138,7 @@ func actOSC(e *Emulator, state *State, ch int) {
 
 func actCSI(e *Emulator, state *State, ch int) {
 	if debug {
-		e.Debug("actCSI: ESC[%s%s (0x%x)", string(state.params),
-			string(rune(ch)), ch)
+		e.Debug("actCSI: ESC[%s%c (0x%x)", string(state.params), ch, ch)
 	}
 	switch ch {
 	case '@': // ICH - Insert CHaracter
@@ -177,12 +217,27 @@ func actCSI(e *Emulator, state *State, ch int) {
 				e.Debug("Unsupported ESC[%sh", string(state.params))
 			}
 		}
-		_ = prefix
-		_ = mode
+
+	case 'l':
+		prefix, mode := state.CSIPrefixParam(0)
+		switch prefix {
+		case "":
+			e.Debug("Unsupported ESC[%sl", string(state.params))
+
+		case "?": // DEC*
+			switch mode {
+			case 3: // DECCOLM - 80 characters per line (erases screen)
+				e.Clear()
+				e.MoveTo(0, 0)
+
+			default:
+				e.Debug("DEC*: unknown mode %d", mode)
+			}
+		}
 
 	default:
-		e.Debug("actCSI: unsupported: ESC[%s%s (0x%x)\n", string(state.params),
-			string(rune(ch)), ch)
+		e.Debug("actCSI: unsupported: ESC[%s%c (0x%x)\n", string(state.params),
+			ch, ch)
 	}
 }
 
@@ -204,6 +259,36 @@ func (s *State) String() string {
 
 func (s *State) Reset() {
 	s.params = nil
+}
+
+func (s *State) AddActions(from, to int, act Action, next *State) {
+	transition := &Transition{
+		Action: act,
+		Next:   next,
+	}
+
+	for ; from <= to; from++ {
+		s.Transitions[from] = transition
+	}
+}
+
+func (s *State) Input(e *Emulator, code int) *State {
+	var act Action
+	var next *State
+
+	transition, ok := s.Transitions[code]
+	if ok {
+		act = transition.Action
+		next = transition.Next
+	} else {
+		act = s.Default
+	}
+
+	if act != nil {
+		act(e, s, code)
+	}
+
+	return next
 }
 
 func (s *State) Params() []string {
@@ -249,36 +334,6 @@ func (s *State) parseCSIParam(defaults []int) (string, []int) {
 	return matches[1], defaults
 }
 
-func (s *State) AddActions(from, to int, act Action, next *State) {
-	transition := &Transition{
-		Action: act,
-		Next:   next,
-	}
-
-	for ; from <= to; from++ {
-		s.Transitions[from] = transition
-	}
-}
-
-func (s *State) Input(e *Emulator, code int) *State {
-	var act Action
-	var next *State
-
-	transition, ok := s.Transitions[code]
-	if ok {
-		act = transition.Action
-		next = transition.Next
-	} else {
-		act = s.Default
-	}
-
-	if act != nil {
-		act(e, s, code)
-	}
-
-	return next
-}
-
 func NewState(name string, def Action) *State {
 	return &State{
 		Name:        name,
@@ -300,6 +355,12 @@ func init() {
 	stStart.AddActions(0x9b, 0x9b, nil, stCSI)
 	stStart.AddActions(0x1b, 0x1b, nil, stESC)
 
+	stESC.AddActions(0x20, 0x2f, actAppendParam, nil)
+	stESC.AddActions(0x30, 0x3f, actPrivateFunction, stStart)
+	stESC.AddActions(0x40, 0x5f, actC1Control, stStart)
+	stESC.AddActions(0x20, 0x20, actInsertSpace, nil) // Always space
+	stESC.AddActions(0xa0, 0xa0, actInsertSpace, nil) // Always space
+	stESC.AddActions(0x7f, 0x7f, nil, nil)            // Delete always ignored
 	stESC.AddActions('[', '[', nil, stCSI)
 	stESC.AddActions(']', ']', nil, stOSC)
 
