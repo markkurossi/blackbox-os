@@ -41,8 +41,7 @@ type Char struct {
 type Action func(e *Emulator, state *State, ch int)
 
 func actError(e *Emulator, state *State, ch int) {
-	e.Debug("Emulator error: state=%s, ch=0x%x,%d,%s\n", state, ch, ch,
-		string(ch))
+	e.Debug("actError: state=%s, ch=0x%x (%d) '%c'\n", state, ch, ch, ch)
 	e.SetState(stStart)
 }
 
@@ -117,7 +116,7 @@ func actPrivateFunction(e *Emulator, state *State, ch int) {
 func actOSC(e *Emulator, state *State, ch int) {
 	params := state.Params()
 	if len(params) != 2 {
-		e.Debug("OSC: invalid parameters: %v")
+		e.Debug("OSC: invalid parameters: %v", params)
 		return
 	}
 	switch params[0] {
@@ -571,8 +570,7 @@ func (e *Emulator) DeleteChars(row, col, count int) {
 
 func (e *Emulator) Input(code int) {
 	if debug {
-		e.Debug("Emulator.Input: %s<-0x%x,%d,%s", e.state, code, code,
-			string(code))
+		e.Debug("Emulator.Input: %s<-0x%x (%d) '%c'", e.state, code, code, code)
 	}
 	next := e.state.Input(e, code)
 	if next != nil {
