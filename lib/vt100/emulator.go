@@ -74,12 +74,12 @@ func actC0Control(e *Emulator, state *State, ch int) {
 }
 
 func actC1Control(e *Emulator, state *State, ch int) {
-	switch 0x40 + ch {
-	case 0x84: // Index, moves down one line same column regardless of NL
+	switch ch {
+	case 'D': // Index, moves down one line same column regardless of NL
 		e.MoveTo(e.Row+1, e.Col)
-	case 0x85: // NEw Line, moves done one line and to first column (CR+LF)
+	case 'E': // NEw Line, moves done one line and to first column (CR+LF)
 		e.MoveTo(e.Row+1, 0)
-	case 0x8d: // Reverse Index, go up one line, reverse scroll if necessary
+	case 'M': // Reverse Index, go up one line, reverse scroll if necessary
 		e.MoveTo(e.Row-1, e.Col)
 	default:
 		e.Debug("actC1Control: %s: %s0x%x\n", state, string(state.params), ch)
@@ -180,12 +180,11 @@ func actCSI(e *Emulator, state *State, ch int) {
 	case 'J': // Erase in Display (cursor does not move)
 		switch state.CSIParam(0) {
 		case 0: // Erase from current position to end (inclusive)
-			// XXX
-			e.Clear()
+			e.Clear(false, true)
 		case 1: // Erase from beginning ot current position (inclusive)
-			// XXX
+			e.Clear(true, false)
 		case 2: // Erase entire display
-			e.Clear()
+			e.Clear(true, true)
 		}
 
 	case 'c':
@@ -211,6 +210,10 @@ func actCSI(e *Emulator, state *State, ch int) {
 
 		case "?":
 			switch mode {
+			case 3:
+				e.Clear(true, true)
+				e.Resize(132, e.Height)
+
 			case 1034: // Interpret "meta" key, sets eight bit (eightBitInput)
 
 			default:
@@ -227,7 +230,8 @@ func actCSI(e *Emulator, state *State, ch int) {
 		case "?": // DEC*
 			switch mode {
 			case 3: // DECCOLM - 80 characters per line (erases screen)
-				e.Clear()
+				e.Clear(true, true)
+				e.Resize(80, e.Height)
 				e.MoveTo(0, 0)
 
 			default:
@@ -319,7 +323,7 @@ func (s *State) parseCSIParam(defaults []int) (string, []int) {
 	}
 	for idx, param := range strings.Split(matches[2], ";") {
 		i, err := strconv.Atoi(param)
-		if err != nil {
+		if err != nil || i == 0 {
 			if idx < len(defaults) {
 				i = defaults[idx]
 			}
@@ -373,14 +377,15 @@ func init() {
 }
 
 type Emulator struct {
-	Width  int
-	Height int
-	Col    int
-	Row    int
-	Lines  [][]Char
-	state  *State
-	output io.Writer
-	debug  io.Writer
+	Width    int
+	Height   int
+	Col      int
+	Row      int
+	overflow bool
+	Lines    [][]Char
+	state    *State
+	output   io.Writer
+	debug    io.Writer
 }
 
 func NewEmulator(output, debug io.Writer) *Emulator {
@@ -422,15 +427,21 @@ func (e *Emulator) Resize(width, height int) {
 	e.Width = width
 	e.Height = height
 
-	lines := make([][]Char, e.Height)
-	for i := 0; i < e.Height; i++ {
-		lines[i] = make([]Char, e.Width)
-		for j := 0; j < e.Width; j++ {
-			lines[i][j] = blank
+	for row := 0; row < height; row++ {
+		var line []Char
+		var start int
+		if row < len(e.Lines) {
+			line = e.Lines[row]
+			start = len(line)
+		} else {
+			line = make([]Char, width)
+			start = 0
+			e.Lines = append(e.Lines, line)
+		}
+		for col := start; col < width; col++ {
+			line[col] = blank
 		}
 	}
-
-	e.Lines = lines
 }
 
 func (e *Emulator) ClearLine(line, from, to int) {
@@ -445,9 +456,23 @@ func (e *Emulator) ClearLine(line, from, to int) {
 	}
 }
 
-func (e *Emulator) Clear() {
+func (e *Emulator) Clear(start, end bool) {
 	for i := 0; i < e.Height; i++ {
-		e.ClearLine(i, 0, e.Width)
+		if i < e.Row {
+			if start {
+				e.ClearLine(i, 0, e.Width)
+			}
+		} else if i == e.Row {
+			if start && end {
+				e.ClearLine(i, 0, e.Width)
+			} else if start {
+				e.ClearLine(i, 0, e.Col+1)
+			} else if end {
+				e.ClearLine(i, e.Col, e.Width)
+			}
+		} else if end {
+			e.ClearLine(i, 0, e.Width)
+		}
 	}
 }
 
@@ -455,8 +480,8 @@ func (e *Emulator) MoveTo(row, col int) {
 	if col < 0 {
 		col = 0
 	}
-	if col > e.Width {
-		col = e.Width
+	if col >= e.Width {
+		col = e.Width - 1
 	}
 	e.Col = col
 
@@ -468,11 +493,12 @@ func (e *Emulator) MoveTo(row, col int) {
 		row = e.Height - 1
 	}
 	e.Row = row
+	e.overflow = false
 }
 
 func (e *Emulator) ScrollUp(count int) {
 	if count >= e.Height {
-		e.Clear()
+		e.Clear(true, true)
 		return
 	}
 
@@ -486,20 +512,25 @@ func (e *Emulator) ScrollUp(count int) {
 }
 
 func (e *Emulator) InsertChar(code int) {
-	if e.Col >= e.Width {
+	if e.overflow {
 		if e.Row+1 >= e.Height {
 			e.ScrollUp(1)
 			e.MoveTo(e.Row, 0)
 		} else {
 			e.MoveTo(e.Row+1, 0)
 		}
+		e.overflow = true
 	}
 	e.Lines[e.Row][e.Col] = Char{
 		Code:       code,
 		Foreground: Black,
 		Background: White,
 	}
-	e.MoveTo(e.Row, e.Col+1)
+	if e.Col+1 >= e.Width {
+		e.overflow = true
+	} else {
+		e.MoveTo(e.Row, e.Col+1)
+	}
 }
 
 func (e *Emulator) InsertChars(row, col, count int) {

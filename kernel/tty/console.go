@@ -10,6 +10,7 @@ package tty
 
 import (
 	"bytes"
+	"encoding/hex"
 	"fmt"
 	"sync"
 	"syscall/js"
@@ -300,6 +301,10 @@ func (c *Console) Read(p []byte) (int, error) {
 
 // Write implements the io.Writer interface.
 func (c *Console) Write(p []byte) (int, error) {
+	if false {
+		kmsg.Printf("Console.Write:\n%s", hex.Dump(p))
+	}
+
 	c.encodingBuf = append(c.encodingBuf, p...)
 
 	for utf8.FullRune(c.encodingBuf) {
