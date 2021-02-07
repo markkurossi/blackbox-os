@@ -2,6 +2,8 @@
 
 WebAssembly based OS in browser.
 
+![Keyboard I/O](bbos-tty.png)
+
 ## Testing on Local Machine
 
 Build kernel, and httpd and create filesystem:
