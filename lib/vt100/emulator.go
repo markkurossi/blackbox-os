@@ -105,11 +105,13 @@ func actPrivateFunction(e *Emulator, state *State, ch int) {
 			}
 
 		default:
-			e.Debug("actPrivateFunction: %s%c", string(state.params), ch)
+			e.Debug("Unsupported actPrivateFunction: %s%c",
+				string(state.params), ch)
 		}
 
 	default:
-		e.Debug("actPrivateFunction: %s%c", string(state.params), ch)
+		e.Debug("Unsupported actPrivateFunction: %s%c",
+			string(state.params), ch)
 	}
 }
 
@@ -159,6 +161,9 @@ func actCSI(e *Emulator, state *State, ch int) {
 	case 'D': // CUB - CUrsor Backward
 		e.MoveTo(e.Row, e.Col-state.CSIParam(1))
 
+	case 'G': // CHA - Cursor Horizontal position Absolute
+		e.MoveTo(e.Row, state.CSIParam(1)-1)
+
 	case 'K': // EL  - Erase in Line (cursor does not move)
 		switch state.CSIParam(0) {
 		case 0:
@@ -188,6 +193,9 @@ func actCSI(e *Emulator, state *State, ch int) {
 
 	case 'c':
 		e.Output("\x1b[?62;1;2;7;8;9;15;18;21;44;45;46c")
+
+	case 'd': // VPA - Vertical Position Absolute (depends on PUM)
+		e.MoveTo(state.CSIParam(1)-1, e.Col)
 
 	case 'f': // HVP - Horizontal and Vertical Position (depends on PUM)
 		_, row, col := state.CSIParams(1, 1)
