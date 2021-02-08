@@ -8,6 +8,23 @@
 
 importScripts('wasm_exec.js');
 
+var systemConsole = console;
+
+console = {}
+
+const consoleFunctions = [
+    "assert", "clear", "count", "countReset", "debug", "dir", "dirxml",
+    "error", "exception", "group", "groupCollapsed", "groupEnd",
+    "info", "log", "profile", "profileEnd", "table", "time", "timeEnd",
+    "timeLog", "timeStamp", "trace", "warn",
+]
+
+consoleFunctions.forEach((item, index) => {
+    console[item] = function() {
+        systemConsole[item].apply(systemConsole, arguments);
+    }
+})
+
 onmessage = function(e) {
     try {
         processEvent(e);

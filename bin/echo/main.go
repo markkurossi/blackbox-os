@@ -8,10 +8,10 @@ package main
 
 import (
 	"fmt"
-
-	"github.com/markkurossi/blackbox-os/kernel/kmsg"
+	"os"
 )
 
 func main() {
-	fmt.Fprintf(kmsg.Writer, "Hello, Black Box OS!")
+	fmt.Fprintf(os.Stdout, "Hello, Black Box OS!\n")
+	fmt.Printf("Hello, stdout!\n")
 }
