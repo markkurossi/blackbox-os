@@ -1,7 +1,7 @@
 //
 // init.js
 //
-// Copyright (c) 2018-2019 Markku Rossi
+// Copyright (c) 2018-2021 Markku Rossi
 //
 // All rights reserved.
 //
@@ -75,4 +75,19 @@ function init(keyboard, mouse, input) {
 
 function uninit() {
     keyboardHandler = undefined;
+}
+
+/*********************************** XXX ************************************/
+
+function spawn() {
+    const worker = new Worker("process.js?_ts=" + new Date().getTime());
+
+    fetch("bin/echo.wasm").then(response =>
+        response.arrayBuffer()
+    ).then(bytes =>
+        worker.postMessage({
+            command: "init",
+            data: bytes
+        })
+    )
 }
