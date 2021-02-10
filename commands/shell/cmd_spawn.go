@@ -14,6 +14,7 @@ import (
 	"syscall/js"
 
 	"github.com/markkurossi/blackbox-os/kernel/control"
+	"github.com/markkurossi/blackbox-os/kernel/errno"
 	"github.com/markkurossi/blackbox-os/kernel/kmsg"
 	"github.com/markkurossi/blackbox-os/kernel/process"
 )
@@ -53,7 +54,7 @@ func cmd_spawn(p *process.Process, args []string) {
 			if offset < 0 || offset+length > len(data) {
 				kmsg.Printf("syscall write: id=%d, fd=%d, offset=%d, length=%d",
 					id, fd, offset, length)
-				syscallResult.Invoke(worker, id, "invalid offset", 0)
+				syscallResult.Invoke(worker, id, errno.EINVAL, 0)
 				return nil
 			}
 

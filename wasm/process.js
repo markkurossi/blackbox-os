@@ -71,7 +71,13 @@ function processEvent(e) {
             console.error("unknown syscall result:", e.data.id);
         } else {
             syscall_pending.delete(e.data.id);
-            cb(e.data.error, e.data.code);
+
+            let err = null;
+            if (e.data.error) {
+                err = new Error(e.data.error);
+                err.code = e.data.error;
+            }
+            cb(err, e.data.code);
         }
         break;
 
