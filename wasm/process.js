@@ -18,15 +18,29 @@ function syscall_write(fd, buf, offset, length, callback) {
         data: buf,
         offset: offset,
         length: length,
-    }, callback);
+    }, {
+        cb: callback
+    });
+}
+
+function syscall_read(fd, buf, offset, length, callback) {
+    syscall({
+        type: "read",
+        fd: fd,
+        length: length
+    }, {
+        cb: callback,
+        buf: buf,
+        offset: offset
+    })
 }
 
 let syscall_id = 1;
 let syscall_pending = new Map();
 
-function syscall(params, callback) {
+function syscall(params, context) {
     params.id = syscall_id++;
-    syscall_pending.set(params.id, callback);
+    syscall_pending.set(params.id, context);
     postMessage(params);
 }
 
@@ -66,8 +80,8 @@ function processEvent(e) {
         break;
 
     case "result":
-        let cb = syscall_pending.get(e.data.id);
-        if (!cb) {
+        let ctx = syscall_pending.get(e.data.id);
+        if (!ctx) {
             console.error("unknown syscall result:", e.data.id);
         } else {
             syscall_pending.delete(e.data.id);
@@ -77,7 +91,11 @@ function processEvent(e) {
                 err = new Error(e.data.error);
                 err.code = e.data.error;
             }
-            cb(err, e.data.code);
+            if (e.data.buf && ctx.buf) {
+                ctx.buf.set(e.data.buf, ctx.offset);
+            }
+
+            ctx.cb(err, e.data.code);
         }
         break;
 

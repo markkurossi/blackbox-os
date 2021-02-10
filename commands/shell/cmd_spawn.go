@@ -22,6 +22,7 @@ import (
 var (
 	syscallSpawn  = js.Global().Get("syscallSpawn")
 	syscallResult = js.Global().Get("syscallResult")
+	uint8Array    = js.Global().Get("Uint8Array")
 )
 
 func init() {
@@ -40,9 +41,15 @@ func cmd_spawn(p *process.Process, args []string) {
 			return nil
 		}
 		event := args[0]
+
+		var id int
+		idVal := event.Get("id")
+		if !idVal.IsNull() {
+			id = idVal.Int()
+		}
+
 		switch event.Get("type").String() {
 		case "write":
-			id := event.Get("id").Int()
 			fd := event.Get("fd").Int()
 			dval := event.Get("data")
 			offset := event.Get("offset").Int()
@@ -69,8 +76,24 @@ func cmd_spawn(p *process.Process, args []string) {
 				syscallResult.Invoke(worker, id, nil, n)
 			}
 
+		case "read":
+			fd := event.Get("fd").Int()
+			length := event.Get("length").Int()
+
+			_ = fd
+
+			data := []byte("Hello, from kernel!")
+			if len(data) > length {
+				data = data[:length]
+			}
+
+			buf := uint8Array.New(len(data))
+			js.CopyBytesToJS(buf, data)
+			syscallResult.Invoke(worker, id, nil, len(data), buf)
+
 		default:
 			kmsg.Printf("syscall: type=%v\n", event.Get("type").String())
+			syscallResult.Invoke(worker, id, errno.ENOSYS, 0)
 		}
 
 		return nil
@@ -87,9 +110,7 @@ func cmd_spawn(p *process.Process, args []string) {
 		return
 	}
 
-	NewUint8Array := js.Global().Get("Uint8Array")
-
-	code := NewUint8Array.New(len(data))
+	code := uint8Array.New(len(data))
 	js.CopyBytesToJS(code, data)
 
 	argv := []interface{}{
