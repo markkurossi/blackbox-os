@@ -7,23 +7,28 @@
 //
 
 importScripts('wasm_exec.js');
+importScripts('wasm_fs.js');
 
-var systemConsole = console;
+const utf8Encode = new TextEncoder();
 
-console = {}
+function syscall_write(fd, buf, offset, length, callback) {
+    syscall({
+        type: "write",
+        fd: fd,
+        data: buf,
+        offset: offset,
+        length: length,
+    }, callback);
+}
 
-const consoleFunctions = [
-    "assert", "clear", "count", "countReset", "debug", "dir", "dirxml",
-    "error", "exception", "group", "groupCollapsed", "groupEnd",
-    "info", "log", "profile", "profileEnd", "table", "time", "timeEnd",
-    "timeLog", "timeStamp", "trace", "warn",
-]
+let syscall_id = 1;
+let syscall_pending = new Map();
 
-consoleFunctions.forEach((item, index) => {
-    console[item] = function() {
-        systemConsole[item].apply(systemConsole, arguments);
-    }
-})
+function syscall(params, callback) {
+    params.id = syscall_id++;
+    syscall_pending.set(params.id, callback);
+    postMessage(params);
+}
 
 onmessage = function(e) {
     try {
@@ -34,13 +39,16 @@ onmessage = function(e) {
 }
 
 function processEvent(e) {
-    console.log("Process:", e);
+    console.log("processEvent:", e.data);
     switch (e.data.command) {
     case "init":
-        const go = new Go();
+        let go = new Go();
+
+        go.argv = e.data.argv || ["wasm"];
+
         let mod, inst;
         console.time("WebAssembly")
-        WebAssembly.instantiate(e.data.data, go.importObject)
+        WebAssembly.instantiate(e.data.code, go.importObject)
             .then((result) => {
                 mod = result.module;
                 inst = result.instance;
@@ -50,14 +58,24 @@ function processEvent(e) {
                     await go.run(inst);
                     // reset instance
                     inst = await WebAssembly.instantiate(mod, go.importObject);
-                    console.log("Halted");
+                    console.log("halted");
                 }
-                console.log("Running")
+                console.log("running")
                 run();
             });
         break;
 
+    case "result":
+        let cb = syscall_pending.get(e.data.id);
+        if (!cb) {
+            console.error("unknown syscall result:", e.data.id);
+        } else {
+            syscall_pending.delete(e.data.id);
+            cb(e.data.error, e.data.code);
+        }
+        break;
+
     default:
-        console.error("Unknown command:", e.command);
+        console.error("unknown command:", e);
     }
 }

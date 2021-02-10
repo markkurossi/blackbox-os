@@ -77,17 +77,46 @@ function uninit() {
     keyboardHandler = undefined;
 }
 
-/*********************************** XXX ************************************/
+/***************************** Process handling *****************************/
 
-function spawn() {
+function syscallSpawn(onSyscall, code, ...argv) {
     const worker = new Worker("process.js?_ts=" + new Date().getTime());
+
+    worker.onmessage = function(e) {
+        onSyscall(e.data);
+    }
+    worker.postMessage({
+        command: "init",
+        argv: argv,
+        code: code,
+    })
+
+    return worker
+}
+
+function syscallResult(worker, id, error, ret) {
+    worker.postMessage({
+        command: "result",
+        id: id,
+        error: error,
+        code: ret,
+    })
+}
+
+function syscallSpawnFetch(onSyscall, code, ...argv) {
+    const worker = new Worker("process.js?_ts=" + new Date().getTime());
+
+    worker.onmessage = function(e) {
+        onSyscall(e.data);
+    }
 
     fetch("bin/echo.wasm").then(response =>
         response.arrayBuffer()
     ).then(bytes =>
         worker.postMessage({
             command: "init",
-            data: bytes
+            argv: argv,
+            code: bytes,
         })
     )
 }

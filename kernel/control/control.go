@@ -1,7 +1,7 @@
 //
 // control.go
 //
-// Copyright (c) 2018 Markku Rossi
+// Copyright (c) 2018-2021 Markku Rossi
 //
 // All rights reserved.
 //
@@ -16,6 +16,7 @@ import (
 var (
 	KernelPower int    = 1
 	WSProxy     string = "localhost:8100"
+	BaseURL     string = fmt.Sprintf("http://%s", WSProxy)
 	FSRoot      string = fmt.Sprintf("http://%s/fs", WSProxy)
 	FSZone      string = "default"
 	ShellPrompt string = "bbos \\W $ "
@@ -77,6 +78,11 @@ var Values = []*Value{
 		Name: "ws.proxy",
 		Type: String,
 		Strp: &WSProxy,
+	},
+	&Value{
+		Name: "baseURL",
+		Type: String,
+		Strp: &BaseURL,
 	},
 	&Value{
 		Name: "fs.root",
