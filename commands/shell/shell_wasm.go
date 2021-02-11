@@ -116,7 +116,7 @@ func readLine(in io.Reader) string {
 }
 
 func Shell(p *process.Process) error {
-	rl := vt100.NewReadline(p.TTY, kmsg.Writer)
+	rl := vt100.NewReadline(p.Stdin, p.Stdout, kmsg.Writer)
 	rl.Tab = func(line string) (string, []string) {
 		return tabCompletion(p, line)
 	}

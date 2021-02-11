@@ -1,7 +1,7 @@
 //
 // cmd_date.go
 //
-// Copyright (c) 2019 Markku Rossi
+// Copyright (c) 2019-2021 Markku Rossi
 //
 // All rights reserved.
 //
@@ -11,8 +11,6 @@ package shell
 import (
 	"fmt"
 	"time"
-
-	"github.com/markkurossi/blackbox-os/kernel/process"
 )
 
 func init() {
@@ -22,7 +20,7 @@ func init() {
 	})
 }
 
-func cmd_date(p *process.Process, args []string) {
+func cmd_date(args []string) {
 	now := time.Now()
-	fmt.Fprintf(p.Stdout, "%s\n", now.Format(time.UnixDate))
+	fmt.Printf("%s\n", now.Format(time.UnixDate))
 }

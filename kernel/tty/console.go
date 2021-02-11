@@ -29,6 +29,10 @@ var (
 	debug        = js.Global().Get("debug")
 )
 
+var (
+	_ vt100.TTY = &Console{}
+)
+
 type KeyType int
 
 var keyTypeNames = map[KeyType]string{
