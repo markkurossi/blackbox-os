@@ -1,7 +1,7 @@
 //
 // filesystem.go
 //
-// Copyright (c) 2018, 2019 Markku Rossi
+// Copyright (c) 2018-2021 Markku Rossi
 //
 // All rights reserved.
 //
@@ -51,11 +51,11 @@ func (info *FileInfo) Sys() interface{} {
 }
 
 func Stat(p *process.Process, name string) (os.FileInfo, error) {
-	path, err := p.ResolvePath(name)
+	path, err := p.FS.ResolvePath(name)
 	if err != nil {
 		return nil, err
 	}
-	element, err := tree.DeserializeID(path[len(path)-1].ID, p.FS.Zone)
+	element, err := tree.DeserializeID(path[len(path)-1].ID, p.FS.Zone())
 	if err != nil {
 		return nil, err
 	}
@@ -90,7 +90,7 @@ func ReadDir(p *process.Process, dirname string) ([]os.FileInfo, error) {
 	}
 
 	// XXX resolve path twice: here and Stat above
-	path, err := p.ResolvePath(dirname)
+	path, err := p.FS.ResolvePath(dirname)
 	if err != nil {
 		return nil, err
 	}
@@ -121,12 +121,12 @@ func (f *File) Reader() io.Reader {
 }
 
 func Open(p *process.Process, name string) (*File, error) {
-	path, err := p.ResolvePath(name)
+	path, err := p.FS.ResolvePath(name)
 	if err != nil {
 		return nil, err
 	}
 
-	element, err := tree.DeserializeID(path[len(path)-1].ID, p.FS.Zone)
+	element, err := tree.DeserializeID(path[len(path)-1].ID, p.FS.Zone())
 	if err != nil {
 		return nil, err
 	}

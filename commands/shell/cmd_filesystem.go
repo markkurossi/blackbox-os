@@ -1,7 +1,7 @@
 //
 // cmd_filesystem.go
 //
-// Copyright (c) 2018-2019 Markku Rossi
+// Copyright (c) 2018-2021 Markku Rossi
 //
 // All rights reserved.
 //
@@ -41,7 +41,7 @@ func init() {
 }
 
 func cmd_pwd(p *process.Process, args []string) {
-	str, _, err := p.WD()
+	str, _, err := p.FS.WD()
 	if err != nil {
 		fmt.Fprintf(p.Stderr, "pwd: %s\n", err)
 	} else {
@@ -52,9 +52,9 @@ func cmd_pwd(p *process.Process, args []string) {
 func cmd_cd(p *process.Process, args []string) {
 	var err error
 	if len(args) < 2 {
-		err = p.SetWD("/")
+		err = p.FS.SetWD("/")
 	} else {
-		err = p.SetWD(args[1])
+		err = p.FS.SetWD(args[1])
 	}
 	if err != nil {
 		fmt.Fprintf(p.Stderr, "chdir: %s\n", err)
@@ -74,12 +74,12 @@ func cmd_ls(p *process.Process, args []string) {
 		return
 	}
 
-	_, id, err := p.WD()
+	_, id, err := p.FS.WD()
 	if err != nil {
 		fmt.Fprintf(p.Stderr, "ls: %s\n", err)
 		return
 	}
-	element, err := tree.DeserializeID(id, p.FS.Zone)
+	element, err := tree.DeserializeID(id, p.FS.Zone())
 	if err != nil {
 		fmt.Fprintf(p.Stderr, "ls: %s\n", err)
 		return
@@ -99,10 +99,10 @@ func cmd_ls(p *process.Process, args []string) {
 }
 
 func listSnapshots(p *process.Process) error {
-	root := p.FS.Zone.HeadID
+	root := p.FS.Zone().HeadID
 
 	for !root.Undefined() {
-		element, err := tree.DeserializeID(root, p.FS.Zone)
+		element, err := tree.DeserializeID(root, p.FS.Zone())
 		if err != nil {
 			return err
 		}
@@ -111,7 +111,7 @@ func listSnapshots(p *process.Process) error {
 			return fmt.Errorf("Invalid snapshot element: %T\n", element)
 		}
 		selected := " "
-		if el.Root.Equal(p.FS.WD[0].ID) {
+		if el.Root.Equal(p.FS.WDPath()[0].ID) {
 			selected = "*"
 		}
 		fmt.Fprintf(p.Stdout, "%s%s\t%s\n", selected, el.Root,
@@ -153,13 +153,13 @@ func cmd_cat(p *process.Process, args []string) {
 }
 
 func catFile(p *process.Process, filename string) {
-	path, err := p.ResolvePath(filename)
+	path, err := p.FS.ResolvePath(filename)
 	if err != nil {
 		fmt.Fprintf(p.Stderr, "cat: %s\n", err)
 		return
 	}
 
-	element, err := tree.DeserializeID(path[len(path)-1].ID, p.FS.Zone)
+	element, err := tree.DeserializeID(path[len(path)-1].ID, p.FS.Zone())
 	if err != nil {
 		fmt.Fprintf(p.Stderr, "cat: %s\n", err)
 		return

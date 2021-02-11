@@ -166,7 +166,7 @@ func prompt(p *process.Process) string {
 				case 'W':
 					dir := "{nodir}"
 
-					wd, _, err := p.WD()
+					wd, _, err := p.FS.WD()
 					if err == nil {
 						parts := file.PathSplit(wd)
 						if len(parts) > 0 {
@@ -214,11 +214,11 @@ func tabCompletion(p *process.Process, line string) (string, []string) {
 func tabSnapshotCompletion(p *process.Process, line string, parts CommandLine,
 	last string) (string, []string) {
 
-	root := p.FS.Zone.HeadID
+	root := p.FS.Zone().HeadID
 	var result []string
 
 	for !root.Undefined() {
-		element, err := tree.DeserializeID(root, p.FS.Zone)
+		element, err := tree.DeserializeID(root, p.FS.Zone())
 		if err != nil {
 			return line, nil
 		}

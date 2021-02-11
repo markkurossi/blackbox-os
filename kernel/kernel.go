@@ -1,7 +1,7 @@
 //
 // kernel.go
 //
-// Copyright (c) 2018-2019 Markku Rossi
+// Copyright (c) 2018-2021 Markku Rossi
 //
 // All rights reserved.
 //
@@ -63,7 +63,7 @@ func runInit() error {
 			control.FSZone, err)
 	}
 
-	process, err := process.NewProcess(console, Zone)
+	process, err := process.New(console, Zone)
 	if err != nil {
 		return fmt.Errorf("Failed to create init process: %s", err)
 	}
