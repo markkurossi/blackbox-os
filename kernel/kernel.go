@@ -16,8 +16,8 @@ import (
 	"github.com/markkurossi/backup/lib/crypto/identity"
 	"github.com/markkurossi/backup/lib/crypto/zone"
 	"github.com/markkurossi/backup/lib/persistence"
-	"github.com/markkurossi/blackbox-os/commands/shell"
 	"github.com/markkurossi/blackbox-os/kernel/control"
+	"github.com/markkurossi/blackbox-os/kernel/iface"
 	"github.com/markkurossi/blackbox-os/kernel/process"
 	"github.com/markkurossi/blackbox-os/kernel/tty"
 	"github.com/markkurossi/blackbox-os/lib/bbos"
@@ -63,18 +63,27 @@ func runInit() error {
 			control.FSZone, err)
 	}
 
-	process, err := process.New(console, Zone)
-	if err != nil {
-		return fmt.Errorf("Failed to create init process: %s", err)
-	}
-	motd, err := bbos.Open(process, "/etc/motd")
-	if err != nil {
-		fmt.Fprintf(console, "Black Box OS\n\n")
-	} else {
-		io.Copy(process.Stdout, motd.Reader())
-	}
+	// Run init.
+	for control.KernelPower != 0 {
+		process, err := process.New(iface.NewFD(console), iface.NewFD(console),
+			iface.NewFD(console), Zone)
+		if err != nil {
+			return fmt.Errorf("Failed to create init process: %s", err)
+		}
+		motd, err := bbos.Open(process, "/etc/motd")
+		if err != nil {
+			fmt.Fprintf(console, "Black Box OS\n\n")
+		} else {
+			io.Copy(console, motd.Reader())
+		}
 
-	fmt.Fprintf(console, "\nType `help' for list of available commands.\n")
+		// XXX move to shell
+		console.SetFlags(0)
 
-	return shell.Shell(process)
+		err = process.Run("sh", []string{})
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }

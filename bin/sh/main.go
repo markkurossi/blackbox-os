@@ -6,7 +6,7 @@
 // All rights reserved.
 //
 
-package shell
+package main
 
 import (
 	"flag"
@@ -117,6 +117,8 @@ func main() {
 	rl.Tab = func(line string) (string, []string) {
 		return tabCompletion(line)
 	}
+
+	fmt.Printf("\nType `help' for list of available commands.\n")
 
 	for {
 		line, err := rl.Read(prompt())

@@ -9,10 +9,21 @@ package vt100
 import (
 	"fmt"
 	"io"
+	"os"
+
+	"github.com/markkurossi/blackbox-os/lib/bbos"
 )
 
 func MakeRaw(stdin io.Reader) (uint, error) {
 	switch fd := stdin.(type) {
+	case *os.File:
+		flags, err := bbos.GetFlags(int(fd.Fd()))
+		if err != nil {
+			return 0, err
+		}
+		// XXX set flags
+		return uint(flags), nil
+
 	default:
 		tty, ok := stdin.(TTY)
 		if ok {

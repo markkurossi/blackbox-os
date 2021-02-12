@@ -1,5 +1,6 @@
 GO := go
-ALL_TARGETS := wasm/kernel.wasm httpd/httpd wasm/fs wasm/bin/echo.wasm
+ALL_TARGETS := wasm/kernel.wasm httpd/httpd wasm/fs	\
+wasm/bin/echo.wasm wasm/bin/sh.wasm
 PUBLIC := mrossi@isle-of-wight.dreamhost.com:markkurossi.com/blackbox-os/
 
 all: $(ALL_TARGETS)
@@ -14,6 +15,8 @@ wasm/kernel.wasm: kernel/kernel.go
 
 wasm/bin/echo.wasm: bin/echo/main.go
 	cd bin/echo; GOOS=js GOARCH=wasm $(GO) build -o ../../wasm/bin/$(notdir $@)
+wasm/bin/sh.wasm: bin/sh/main.go
+	cd bin/sh; GOOS=js GOARCH=wasm $(GO) build -o ../../wasm/bin/$(notdir $@)
 
 httpd/httpd: httpd/httpd.go
 	cd httpd; $(GO) build -o $(notdir $@)

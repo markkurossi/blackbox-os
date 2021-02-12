@@ -6,7 +6,12 @@
 
 package errno
 
-const (
-	EINVAL string = "EINVAL"
-	ENOSYS string = "ENOSYS"
+import (
+	"errors"
+)
+
+var (
+	EINVAL = errors.New("EINVAL")
+	ENOSYS = errors.New("ENOSYS")
+	EBADF  = errors.New("EBADF")
 )

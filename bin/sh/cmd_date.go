@@ -6,7 +6,7 @@
 // All rights reserved.
 //
 
-package shell
+package main
 
 import (
 	"fmt"
