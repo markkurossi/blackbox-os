@@ -25,3 +25,7 @@ func Getwd() (string, error) {
 	}
 	return string(buf), nil
 }
+
+func Chdir(dir string) error {
+	return fmt.Errorf("Chdir: not implemented yet")
+}

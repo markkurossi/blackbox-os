@@ -18,7 +18,7 @@ var (
 func Syscall(call string, params map[string]interface{}) (
 	map[string]interface{}, error) {
 
-	params["type"] = call
+	params["cmd"] = call
 
 	c := make(chan []js.Value)
 

@@ -13,7 +13,7 @@ const utf8Encode = new TextEncoder();
 
 function syscall_write(fd, buf, offset, length, callback) {
     syscall({
-        type: "write",
+        cmd: "write",
         fd: fd,
         data: buf,
         offset: offset,
@@ -25,7 +25,7 @@ function syscall_write(fd, buf, offset, length, callback) {
 
 function syscall_read(fd, buf, offset, length, callback) {
     syscall({
-        type: "read",
+        cmd: "read",
         fd: fd,
         length: length
     }, {
@@ -53,8 +53,8 @@ onmessage = function(e) {
 }
 
 function processEvent(e) {
-    console.log("processEvent:", e.data);
-    switch (e.data.command) {
+    console.log("process:", e.data);
+    switch (e.data.cmd) {
     case "init":
         let go = new Go();
 

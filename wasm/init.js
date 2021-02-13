@@ -83,10 +83,11 @@ function syscallSpawn(onSyscall, code, ...argv) {
     const worker = new Worker("process.js?_ts=" + new Date().getTime());
 
     worker.onmessage = function(e) {
+        console.log("syscall:", e.data);
         onSyscall(e.data);
     }
     worker.postMessage({
-        command: "init",
+        cmd: "init",
         argv: argv,
         code: code,
     })
@@ -96,7 +97,7 @@ function syscallSpawn(onSyscall, code, ...argv) {
 
 function syscallResult(worker, id, error, ret, buf) {
     worker.postMessage({
-        command: "result",
+        cmd: "result",
         id: id,
         error: error,
         code: ret,
@@ -115,7 +116,7 @@ function syscallSpawnFetch(onSyscall, code, ...argv) {
         response.arrayBuffer()
     ).then(bytes =>
         worker.postMessage({
-            command: "init",
+            cmd: "init",
             argv: argv,
             code: bytes,
         })

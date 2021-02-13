@@ -7,7 +7,6 @@
 package process
 
 import (
-	"encoding/hex"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -102,7 +101,7 @@ func (p *Process) syscall(worker, event js.Value) {
 		id = idVal.Int()
 	}
 
-	switch event.Get("type").String() {
+	switch event.Get("cmd").String() {
 	case "write":
 		fd := event.Get("fd").Int()
 		dval := event.Get("data")
@@ -113,8 +112,6 @@ func (p *Process) syscall(worker, event js.Value) {
 		js.CopyBytesToGo(data, dval)
 
 		if offset < 0 || offset+length > len(data) {
-			kmsg.Printf("syscall write: id=%d, fd=%d, offset=%d, length=%d",
-				id, fd, offset, length)
 			syscallResult.Invoke(worker, id, errno.EINVAL.Error(), 0)
 			return
 		}
@@ -127,14 +124,10 @@ func (p *Process) syscall(worker, event js.Value) {
 
 		n, err := f.Write(data[offset : offset+length])
 		if err != nil {
-			kmsg.Printf("syscall write: id=%d, fd=%d => %d %s:\n%s",
-				id, fd, n, err, hex.Dump(data))
 			syscallResult.Invoke(worker, id, err.Error(), n)
 			return
 		}
 
-		kmsg.Printf("syscall write: id=%d, fd=%d => %d:\n%s",
-			id, fd, n, hex.Dump(data))
 		syscallResult.Invoke(worker, id, nil, n)
 
 	case "read":
@@ -153,9 +146,6 @@ func (p *Process) syscall(worker, event js.Value) {
 			syscallResult.Invoke(worker, id, err.Error(), 0)
 			return
 		}
-
-		kmsg.Printf("syscall read: id=%d, fd=%d => %d:\n%s",
-			id, fd, len(data), hex.Dump(data))
 
 		buf := uint8Array.New(len(data))
 		js.CopyBytesToJS(buf, data)
@@ -176,11 +166,9 @@ func (p *Process) syscall(worker, event js.Value) {
 				flags = int(native.Flags())
 
 			default:
-				kmsg.Printf("syscall ioctl: invalid FD %T\n", native)
 				syscallResult.Invoke(worker, id, errno.EBADF.Error(), 0)
 				return
 			}
-			kmsg.Printf("syscall ioctl: fd=%d => %d\n", fd, flags)
 			syscallResult.Invoke(worker, id, nil, flags)
 
 		case "SetFlags":
@@ -196,11 +184,9 @@ func (p *Process) syscall(worker, event js.Value) {
 				native.SetFlags(tty.TTYFlags(flags))
 
 			default:
-				kmsg.Printf("syscall ioctl: invalid FD %T\n", native)
 				syscallResult.Invoke(worker, id, errno.EBADF.Error(), 0)
 				return
 			}
-			kmsg.Printf("syscall ioctl: fd=%d\n", fd)
 			syscallResult.Invoke(worker, id, nil, 0)
 
 		default:
@@ -217,14 +203,12 @@ func (p *Process) syscall(worker, event js.Value) {
 		}
 		data := []byte(wd)
 
-		kmsg.Printf("syscall getwd:\n%s", hex.Dump(data))
-
 		buf := uint8Array.New(len(data))
 		js.CopyBytesToJS(buf, data)
 		syscallResult.Invoke(worker, id, nil, len(data), buf)
 
 	default:
-		kmsg.Printf("syscall: type=%v\n", event.Get("type").String())
+		kmsg.Printf("syscall: type=%v\n", event.Get("cmd").String())
 		syscallResult.Invoke(worker, id, errno.ENOSYS.Error(), 0)
 	}
 }
