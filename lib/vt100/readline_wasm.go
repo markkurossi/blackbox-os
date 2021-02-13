@@ -21,28 +21,23 @@ func MakeRaw(stdin io.Reader) (uint, error) {
 		if err != nil {
 			return 0, err
 		}
-		// XXX set flags
+		err = bbos.SetFlags(int(fd.Fd()), flags & ^(1|3))
+		if err != nil {
+			return 0, err
+		}
 		return uint(flags), nil
 
 	default:
-		tty, ok := stdin.(TTY)
-		if ok {
-			flags := tty.Flags()
-			tty.SetFlags(flags & ^(ICANON | ECHO))
-			return uint(flags), nil
-		}
 		return 0, fmt.Errorf("unsupported fd: %T", fd)
 	}
 }
 
 func MakeCooked(stdin io.Reader, flags uint) error {
 	switch fd := stdin.(type) {
+	case *os.File:
+		return bbos.SetFlags(int(fd.Fd()), int(flags))
+
 	default:
-		tty, ok := stdin.(TTY)
-		if ok {
-			tty.SetFlags(TTYFlags(flags))
-			return nil
-		}
 		return fmt.Errorf("unsupported fd: %T", fd)
 	}
 }

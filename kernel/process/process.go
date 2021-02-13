@@ -19,6 +19,7 @@ import (
 	"github.com/markkurossi/blackbox-os/kernel/fs"
 	"github.com/markkurossi/blackbox-os/kernel/iface"
 	"github.com/markkurossi/blackbox-os/kernel/kmsg"
+	"github.com/markkurossi/blackbox-os/kernel/tty"
 )
 
 var (
@@ -161,8 +162,66 @@ func (p *Process) syscall(worker, event js.Value) {
 		syscallResult.Invoke(worker, id, nil, len(data), buf)
 
 	case "ioctl":
-		kmsg.Printf("syscall ioctl: not implemented yet\n")
-		syscallResult.Invoke(worker, id, nil, 0)
+		fd := event.Get("fd").Int()
+		switch event.Get("request").String() {
+		case "GetFlags":
+			f, ok := p.FDs[fd]
+			if !ok {
+				syscallResult.Invoke(worker, id, errno.EBADF.Error(), 0)
+				return
+			}
+			var flags int
+			switch native := f.Native().(type) {
+			case *tty.Console:
+				flags = int(native.Flags())
+
+			default:
+				kmsg.Printf("syscall ioctl: invalid FD %T\n", native)
+				syscallResult.Invoke(worker, id, errno.EBADF.Error(), 0)
+				return
+			}
+			kmsg.Printf("syscall ioctl: fd=%d => %d\n", fd, flags)
+			syscallResult.Invoke(worker, id, nil, flags)
+
+		case "SetFlags":
+			f, ok := p.FDs[fd]
+			if !ok {
+				syscallResult.Invoke(worker, id, errno.EBADF.Error(), 0)
+				return
+			}
+			flags := event.Get("value").Int()
+
+			switch native := f.Native().(type) {
+			case *tty.Console:
+				native.SetFlags(tty.TTYFlags(flags))
+
+			default:
+				kmsg.Printf("syscall ioctl: invalid FD %T\n", native)
+				syscallResult.Invoke(worker, id, errno.EBADF.Error(), 0)
+				return
+			}
+			kmsg.Printf("syscall ioctl: fd=%d\n", fd)
+			syscallResult.Invoke(worker, id, nil, 0)
+
+		default:
+			kmsg.Printf("syscall ioctl: %s not implemented yet\n",
+				event.Get("request").String())
+			syscallResult.Invoke(worker, id, errno.ENOSYS.Error(), 0)
+		}
+
+	case "getwd":
+		wd, _, err := p.FS.WD()
+		if err != nil {
+			syscallResult.Invoke(worker, id, err.Error(), 0)
+			return
+		}
+		data := []byte(wd)
+
+		kmsg.Printf("syscall getwd:\n%s", hex.Dump(data))
+
+		buf := uint8Array.New(len(data))
+		js.CopyBytesToJS(buf, data)
+		syscallResult.Invoke(worker, id, nil, len(data), buf)
 
 	default:
 		kmsg.Printf("syscall: type=%v\n", event.Get("type").String())

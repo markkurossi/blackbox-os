@@ -10,7 +10,7 @@ import (
 	"fmt"
 )
 
-func Syscall(call string, fd int, params map[string]interface{}) (
+func Syscall(call string, params map[string]interface{}) (
 	map[string]interface{}, error) {
 
 	return nil, fmt.Errorf("Syscall not implemented")

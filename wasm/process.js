@@ -82,7 +82,7 @@ function processEvent(e) {
     case "result":
         let ctx = syscall_pending.get(e.data.id);
         if (!ctx) {
-            console.error("unknown syscall result:", e.data.id);
+            console.error("unknown syscall result: id=%d", e.data.id);
         } else {
             syscall_pending.delete(e.data.id);
 
@@ -92,10 +92,10 @@ function processEvent(e) {
                 err.code = e.data.error;
             }
             if (e.data.buf && ctx.buf) {
-                ctx.buf.set(e.data.buf, ctx.offset);
+                ctx.buf.set(e.data.buf, ctx.offset || 0);
             }
 
-            ctx.cb(err, e.data.code);
+            ctx.cb(err, e.data.code, e.data.buf);
         }
         break;
 

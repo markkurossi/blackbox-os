@@ -15,11 +15,10 @@ var (
 	syscall = js.Global().Get("syscall")
 )
 
-func Syscall(call string, fd int, params map[string]interface{}) (
+func Syscall(call string, params map[string]interface{}) (
 	map[string]interface{}, error) {
 
 	params["type"] = call
-	params["fd"] = fd
 
 	c := make(chan []js.Value)
 
@@ -38,7 +37,14 @@ func Syscall(call string, fd int, params map[string]interface{}) (
 		return nil, errors.New(result[0].Get("code").String())
 	}
 
-	return map[string]interface{}{
-		"Flags": result[1].Int(),
-	}, nil
+	values := map[string]interface{}{
+		"ret": result[1].Int(),
+	}
+	if len(result) > 2 && !result[2].IsUndefined() {
+		buf := make([]byte, result[2].Length())
+		js.CopyBytesToGo(buf, result[2])
+		values["buf"] = buf
+	}
+
+	return values, nil
 }

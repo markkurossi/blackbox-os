@@ -18,6 +18,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/markkurossi/blackbox-os/lib/bbos"
 	"github.com/markkurossi/blackbox-os/lib/file"
 	"github.com/markkurossi/blackbox-os/lib/vt100"
 )
@@ -164,9 +165,10 @@ func prompt() string {
 				case 'W':
 					dir := "{nodir}"
 
-					//wd, _, err := //p.FS.WD()
-					wd := "{WD}"
-					var err error
+					wd, err := bbos.Getwd()
+					if err != nil {
+						fmt.Fprintf(os.Stderr, "Getwd: %s\n", err)
+					}
 					if err == nil {
 						parts := file.PathSplit(wd)
 						if len(parts) > 0 {

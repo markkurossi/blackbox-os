@@ -17,10 +17,10 @@ import (
 	"github.com/markkurossi/backup/lib/crypto/zone"
 	"github.com/markkurossi/backup/lib/persistence"
 	"github.com/markkurossi/blackbox-os/kernel/control"
+	"github.com/markkurossi/blackbox-os/kernel/fs"
 	"github.com/markkurossi/blackbox-os/kernel/iface"
 	"github.com/markkurossi/blackbox-os/kernel/process"
 	"github.com/markkurossi/blackbox-os/kernel/tty"
-	"github.com/markkurossi/blackbox-os/lib/bbos"
 )
 
 var (
@@ -70,15 +70,12 @@ func runInit() error {
 		if err != nil {
 			return fmt.Errorf("Failed to create init process: %s", err)
 		}
-		motd, err := bbos.Open(process, "/etc/motd")
+		motd, err := fs.Open(process.FS, "/etc/motd")
 		if err != nil {
 			fmt.Fprintf(console, "Black Box OS\n\n")
 		} else {
 			io.Copy(console, motd.Reader())
 		}
-
-		// XXX move to shell
-		console.SetFlags(0)
 
 		err = process.Run("sh", []string{})
 		if err != nil {

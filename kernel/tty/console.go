@@ -30,7 +30,7 @@ var (
 )
 
 var (
-	_ vt100.TTY = &Console{}
+	_ TTY = &Console{}
 )
 
 type KeyType int
@@ -70,7 +70,7 @@ const (
 )
 
 type Console struct {
-	flags       vt100.TTYFlags
+	flags       TTYFlags
 	qCanon      *Canonical
 	qNonCanon   []byte
 	cond        *sync.Cond
@@ -229,11 +229,11 @@ func NewCanonical() *Canonical {
 	}
 }
 
-func (c *Console) Flags() vt100.TTYFlags {
+func (c *Console) Flags() TTYFlags {
 	return c.flags
 }
 
-func (c *Console) SetFlags(flags vt100.TTYFlags) {
+func (c *Console) SetFlags(flags TTYFlags) {
 	c.flags = flags
 }
 
@@ -284,7 +284,7 @@ func (c *Console) Read(p []byte) (int, error) {
 
 	var n int
 
-	if (c.flags & vt100.ICANON) != 0 {
+	if (c.flags & ICANON) != 0 {
 		for len(c.qCanon.avail) == 0 {
 			c.cond.Wait()
 		}
@@ -390,7 +390,7 @@ func (c *Console) onKey(kt KeyType, code rune) {
 	c.cond.L.Lock()
 	defer c.cond.L.Unlock()
 
-	if (c.flags & vt100.ICANON) != 0 {
+	if (c.flags & ICANON) != 0 {
 		if c.qCanon.input(c, kt, code) {
 			c.emulator.MoveTo(c.emulator.Row+1, 0)
 			c.cond.Broadcast()
@@ -433,7 +433,7 @@ func (c *Console) onKey(kt KeyType, code rune) {
 }
 
 func (c *Console) Echo(code []int) {
-	if (c.flags & vt100.ECHO) != 0 {
+	if (c.flags & ECHO) != 0 {
 		for _, co := range code {
 			c.emulator.Input(co)
 		}
@@ -453,9 +453,9 @@ func (iw *inputWriter) Write(p []byte) (int, error) {
 	return len(p), nil
 }
 
-func NewConsole() vt100.TTY {
+func NewConsole() TTY {
 	c := &Console{
-		flags:  vt100.ICANON | vt100.ECHO,
+		flags:  ICANON | ECHO,
 		qCanon: NewCanonical(),
 		cond:   sync.NewCond(new(sync.Mutex)),
 	}
