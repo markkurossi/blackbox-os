@@ -125,7 +125,8 @@ func (p *Process) syscallHandler(id int, worker, event js.Value) error {
 		}
 		f, err := fs.Open(p.FS, string(filename))
 		if err != nil {
-			return err
+			kmsg.Printf("syscall: open: %s", err)
+			return errno.EINVAL
 		}
 		fd := p.NextFD()
 		p.FDs[fd] = iface.NewFD(f.Reader())
