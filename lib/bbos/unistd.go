@@ -28,7 +28,7 @@ func Getwd() (string, error) {
 
 func Chdir(dir string) error {
 	_, err := Syscall("chdir", map[string]interface{}{
-		"data": JSByteArray([]byte(dir)),
+		"path": JSByteArray([]byte(dir)),
 	})
 	return err
 }

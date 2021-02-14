@@ -64,9 +64,9 @@ func (fd *FileDesc) Native() interface{} {
 	return fd.native
 }
 
-func NewFD(r interface{}) FD {
+func NewFD(native interface{}) FD {
 	return &FileDesc{
-		native:   r,
+		native:   native,
 		refCount: 1,
 	}
 }

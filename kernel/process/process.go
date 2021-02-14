@@ -8,6 +8,7 @@ package process
 
 import (
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"syscall/js"
@@ -28,8 +29,9 @@ var (
 )
 
 type Process struct {
-	FDs map[int]iface.FD
-	FS  *fs.FS
+	FDs    map[int]iface.FD
+	FS     *fs.FS
+	nextFD int
 }
 
 func New(stdin, stdout, stderr iface.FD, z *zone.Zone) (*Process, error) {
@@ -38,8 +40,9 @@ func New(stdin, stdout, stderr iface.FD, z *zone.Zone) (*Process, error) {
 		return nil, err
 	}
 	p := &Process{
-		FDs: make(map[int]iface.FD),
-		FS:  fs,
+		FDs:    make(map[int]iface.FD),
+		FS:     fs,
+		nextFD: 3,
 	}
 
 	if stdin != nil {
@@ -53,6 +56,12 @@ func New(stdin, stdout, stderr iface.FD, z *zone.Zone) (*Process, error) {
 	}
 
 	return p, nil
+}
+
+func (p *Process) NextFD() int {
+	fd := p.nextFD
+	p.nextFD++
+	return fd
 }
 
 func (p *Process) Run(cmd string, args []string) error {
@@ -109,6 +118,19 @@ func (p *Process) syscall(worker, event js.Value) {
 
 func (p *Process) syscallHandler(id int, worker, event js.Value) error {
 	switch event.Get("cmd").String() {
+	case "open":
+		filename, err := getString(event, "path")
+		if err != nil {
+			return err
+		}
+		f, err := fs.Open(p.FS, string(filename))
+		if err != nil {
+			return err
+		}
+		fd := p.NextFD()
+		p.FDs[fd] = iface.NewFD(f.Reader())
+		syscallResult.Invoke(worker, id, nil, fd)
+
 	case "write":
 		fd := event.Get("fd").Int()
 		data, err := getData(event, "data")
@@ -144,15 +166,18 @@ func (p *Process) syscallHandler(id int, worker, event js.Value) error {
 		}
 
 		data := make([]byte, length)
-		_, err := f.Read(data)
+		n, err := f.Read(data)
 		if err != nil {
+			if err == io.EOF {
+				syscallResult.Invoke(worker, id, nil, 0)
+				return nil
+			}
 			return err
-
 		}
 
-		buf := uint8Array.New(len(data))
-		js.CopyBytesToJS(buf, data)
-		syscallResult.Invoke(worker, id, nil, len(data), buf)
+		buf := uint8Array.New(n)
+		js.CopyBytesToJS(buf, data[:n])
+		syscallResult.Invoke(worker, id, nil, n, buf)
 
 	case "ioctl":
 		fd := event.Get("fd").Int()
@@ -195,7 +220,7 @@ func (p *Process) syscallHandler(id int, worker, event js.Value) error {
 		}
 
 	case "chdir":
-		path, err := getData(event, "data")
+		path, err := getData(event, "path")
 		if err != nil {
 			return err
 		}
@@ -217,7 +242,7 @@ func (p *Process) syscallHandler(id int, worker, event js.Value) error {
 		syscallResult.Invoke(worker, id, nil, len(data), buf)
 
 	default:
-		kmsg.Printf("syscall: not implmemented: %v\n",
+		kmsg.Printf("syscall: %s: not implemented\n",
 			event.Get("cmd").String())
 		return errno.ENOSYS
 	}
@@ -235,4 +260,15 @@ func getData(event js.Value, name string) ([]byte, error) {
 	js.CopyBytesToGo(buf, val)
 
 	return buf, nil
+}
+
+func getString(event js.Value, name string) (string, error) {
+	val := event.Get(name)
+	switch val.Type() {
+	case js.TypeString:
+		return val.String(), nil
+
+	default:
+		return "", errno.EINVAL
+	}
 }

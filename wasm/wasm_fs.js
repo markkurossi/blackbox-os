@@ -49,7 +49,9 @@ global.fs = {
     link(path, link, callback) { callback(enosys()); },
     lstat(path, callback) { callback(enosys()); },
     mkdir(path, perm, callback) { callback(enosys()); },
-    open(path, flags, mode, callback) { callback(enosys()); },
+    open(path, flags, mode, callback) {
+        syscall_open(path, flags, mode, callback);
+    },
     read(fd, buffer, offset, length, position, callback) {
         if (offset < 0 || offset + length > buffer.length || position != null) {
             callback(einval());

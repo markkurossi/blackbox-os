@@ -7,9 +7,21 @@
 //
 
 importScripts('wasm_exec.js');
-importScripts('wasm_fs.js');
+importScripts('wasm_fs.js?_st' + new Date().getTime());
+importScripts('wasm_process.js?_st' + new Date().getTime());
 
 const utf8Encode = new TextEncoder();
+
+function syscall_open(path, flags, mode, callback) {
+    syscall({
+        cmd: "open",
+        path: path,
+        flags: flags,
+        mode: mode
+    }, {
+        cb: callback
+    });
+}
 
 function syscall_write(fd, buf, offset, length, callback) {
     syscall({
@@ -17,7 +29,7 @@ function syscall_write(fd, buf, offset, length, callback) {
         fd: fd,
         data: buf,
         offset: offset,
-        length: length,
+        length: length
     }, {
         cb: callback
     });
@@ -91,11 +103,14 @@ function processEvent(e) {
                 err = new Error(e.data.error);
                 err.code = e.data.error;
             }
-            if (e.data.buf && ctx.buf) {
-                ctx.buf.set(e.data.buf, ctx.offset || 0);
+            if (e.data.buf) {
+                if (ctx.buf) {
+                    ctx.buf.set(e.data.buf, ctx.offset || 0);
+                }
+                ctx.cb(err, e.data.code, e.data.buf);
+            } else {
+                ctx.cb(err, e.data.code);
             }
-
-            ctx.cb(err, e.data.code, e.data.buf);
         }
         break;
 
