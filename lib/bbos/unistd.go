@@ -27,5 +27,8 @@ func Getwd() (string, error) {
 }
 
 func Chdir(dir string) error {
-	return fmt.Errorf("Chdir: not implemented yet")
+	_, err := Syscall("chdir", map[string]interface{}{
+		"data": JSByteArray([]byte(dir)),
+	})
+	return err
 }

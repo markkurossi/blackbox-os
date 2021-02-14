@@ -95,37 +95,41 @@ func (p *Process) Run(cmd string, args []string) error {
 }
 
 func (p *Process) syscall(worker, event js.Value) {
-	var id int
 	idVal := event.Get("id")
-	if !idVal.IsNull() {
-		id = idVal.Int()
+	if idVal.IsNull() || idVal.IsUndefined() {
+		kmsg.Printf("syscall: no call ID")
+		return
 	}
+	id := idVal.Int()
+	err := p.syscallHandler(id, worker, event)
+	if err != nil {
+		syscallResult.Invoke(worker, id, err.Error())
+	}
+}
 
+func (p *Process) syscallHandler(id int, worker, event js.Value) error {
 	switch event.Get("cmd").String() {
 	case "write":
 		fd := event.Get("fd").Int()
-		dval := event.Get("data")
+		data, err := getData(event, "data")
+		if err != nil {
+			return err
+		}
 		offset := event.Get("offset").Int()
 		length := event.Get("length").Int()
 
-		data := make([]byte, dval.Length())
-		js.CopyBytesToGo(data, dval)
-
 		if offset < 0 || offset+length > len(data) {
-			syscallResult.Invoke(worker, id, errno.EINVAL.Error(), 0)
-			return
+			return errno.EINVAL
 		}
 
 		f, ok := p.FDs[fd]
 		if !ok {
-			syscallResult.Invoke(worker, id, errno.EBADF.Error(), 0)
-			return
+			return errno.EBADF
 		}
 
 		n, err := f.Write(data[offset : offset+length])
 		if err != nil {
-			syscallResult.Invoke(worker, id, err.Error(), n)
-			return
+			return err
 		}
 
 		syscallResult.Invoke(worker, id, nil, n)
@@ -136,15 +140,14 @@ func (p *Process) syscall(worker, event js.Value) {
 
 		f, ok := p.FDs[fd]
 		if !ok {
-			syscallResult.Invoke(worker, id, errno.EBADF.Error(), 0)
-			return
+			return errno.EBADF
 		}
 
 		data := make([]byte, length)
 		_, err := f.Read(data)
 		if err != nil {
-			syscallResult.Invoke(worker, id, err.Error(), 0)
-			return
+			return err
+
 		}
 
 		buf := uint8Array.New(len(data))
@@ -157,8 +160,7 @@ func (p *Process) syscall(worker, event js.Value) {
 		case "GetFlags":
 			f, ok := p.FDs[fd]
 			if !ok {
-				syscallResult.Invoke(worker, id, errno.EBADF.Error(), 0)
-				return
+				return errno.EBADF
 			}
 			var flags int
 			switch native := f.Native().(type) {
@@ -166,16 +168,14 @@ func (p *Process) syscall(worker, event js.Value) {
 				flags = int(native.Flags())
 
 			default:
-				syscallResult.Invoke(worker, id, errno.EBADF.Error(), 0)
-				return
+				return errno.EBADF
 			}
 			syscallResult.Invoke(worker, id, nil, flags)
 
 		case "SetFlags":
 			f, ok := p.FDs[fd]
 			if !ok {
-				syscallResult.Invoke(worker, id, errno.EBADF.Error(), 0)
-				return
+				return errno.EBADF
 			}
 			flags := event.Get("value").Int()
 
@@ -184,22 +184,31 @@ func (p *Process) syscall(worker, event js.Value) {
 				native.SetFlags(tty.TTYFlags(flags))
 
 			default:
-				syscallResult.Invoke(worker, id, errno.EBADF.Error(), 0)
-				return
+				return errno.EBADF
 			}
 			syscallResult.Invoke(worker, id, nil, 0)
 
 		default:
 			kmsg.Printf("syscall ioctl: %s not implemented yet\n",
 				event.Get("request").String())
-			syscallResult.Invoke(worker, id, errno.ENOSYS.Error(), 0)
+			return errno.ENOSYS
 		}
+
+	case "chdir":
+		path, err := getData(event, "data")
+		if err != nil {
+			return err
+		}
+		err = p.FS.SetWD(string(path))
+		if err != nil {
+			return err
+		}
+		syscallResult.Invoke(worker, id, nil, 0)
 
 	case "getwd":
 		wd, _, err := p.FS.WD()
 		if err != nil {
-			syscallResult.Invoke(worker, id, err.Error(), 0)
-			return
+			return err
 		}
 		data := []byte(wd)
 
@@ -208,7 +217,22 @@ func (p *Process) syscall(worker, event js.Value) {
 		syscallResult.Invoke(worker, id, nil, len(data), buf)
 
 	default:
-		kmsg.Printf("syscall: type=%v\n", event.Get("cmd").String())
-		syscallResult.Invoke(worker, id, errno.ENOSYS.Error(), 0)
+		kmsg.Printf("syscall: not implmemented: %v\n",
+			event.Get("cmd").String())
+		return errno.ENOSYS
 	}
+
+	return nil
+}
+
+func getData(event js.Value, name string) ([]byte, error) {
+	val := event.Get(name)
+	if val.IsNull() || val.IsUndefined() {
+		return nil, errno.EINVAL
+	}
+
+	buf := make([]byte, val.Length())
+	js.CopyBytesToGo(buf, val)
+
+	return buf, nil
 }

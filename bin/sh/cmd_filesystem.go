@@ -10,6 +10,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 
@@ -29,6 +30,10 @@ func init() {
 		Builtin{
 			Name: "ls",
 			Cmd:  cmd_ls,
+		},
+		Builtin{
+			Name: "cat",
+			Cmd:  cmd_cat,
 		},
 	}...)
 }
@@ -61,4 +66,20 @@ func cmd_ls(args []string) {
 		return
 	}
 	fmt.Printf("%v\n", files)
+}
+
+func cmd_cat(args []string) {
+	for i := 1; i < len(args); i++ {
+		file, err := os.Open(args[i])
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "cat: %s: %s\n", args[i], err)
+			continue
+		}
+		defer file.Close()
+
+		_, err = io.Copy(os.Stdout, file)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "cat: %s: %s\n", args[i], err)
+		}
+	}
 }

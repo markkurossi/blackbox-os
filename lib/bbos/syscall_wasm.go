@@ -12,8 +12,15 @@ import (
 )
 
 var (
-	syscall = js.Global().Get("syscall")
+	syscall    = js.Global().Get("syscall")
+	uint8Array = js.Global().Get("Uint8Array")
 )
+
+func JSByteArray(data []byte) js.Value {
+	array := uint8Array.New(len(data))
+	js.CopyBytesToJS(array, data)
+	return array
+}
 
 func Syscall(call string, params map[string]interface{}) (
 	map[string]interface{}, error) {
