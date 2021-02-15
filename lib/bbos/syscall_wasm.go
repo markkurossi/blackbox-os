@@ -12,8 +12,9 @@ import (
 )
 
 var (
-	syscall    = js.Global().Get("syscall")
-	uint8Array = js.Global().Get("Uint8Array")
+	syscall      = js.Global().Get("syscall")
+	syscallSetWD = js.Global().Get("syscallSetWD")
+	uint8Array   = js.Global().Get("Uint8Array")
 )
 
 func JSByteArray(data []byte) js.Value {
@@ -54,4 +55,8 @@ func Syscall(call string, params map[string]interface{}) (
 	}
 
 	return values, nil
+}
+
+func SyscallSetWD(cwd string) {
+	syscallSetWD.Invoke(js.ValueOf(cwd))
 }

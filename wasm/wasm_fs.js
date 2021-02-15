@@ -63,7 +63,23 @@ global.fs = {
     readlink(path, callback) { callback(enosys()); },
     rename(from, to, callback) { callback(enosys()); },
     rmdir(path, callback) { callback(enosys()); },
-    stat(path, callback) { callback(enosys()); },
+    stat(path, callback) {
+        callback(null, {
+            dev: 0,
+            ino: 0,
+            mode: 0,
+            nlink: 0,
+            uid: 0,
+            gid: 0,
+            rdev: 0,
+            size: 0,
+            blksize: 0,
+            blocks: 0,
+            atimeMs: 0,
+            mtimeMs: 0,
+            ctimeMs: 0
+        });
+    },
     symlink(path, link, callback) { callback(enosys()); },
     truncate(path, length, callback) { callback(enosys()); },
     unlink(path, callback) { callback(enosys()); },

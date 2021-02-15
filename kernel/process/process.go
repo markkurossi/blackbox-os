@@ -229,7 +229,7 @@ func (p *Process) syscallHandler(id int, worker, event js.Value) error {
 		if err != nil {
 			return err
 		}
-		syscallResult.Invoke(worker, id, nil, 0)
+		fallthrough
 
 	case "getwd":
 		wd, _, err := p.FS.WD()
