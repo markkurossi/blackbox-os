@@ -112,11 +112,22 @@ func ReadDir(fs *FS, dirname string) ([]os.FileInfo, error) {
 }
 
 type File struct {
-	handle tree.File
+	Handle tree.Element
 }
 
 func (f *File) Reader() io.Reader {
-	return f.handle.Reader()
+	switch native := f.Handle.(type) {
+	case tree.File:
+		return native.Reader()
+
+	default:
+		fmt.Fprintf(os.Stderr, "read: %T", native)
+		return f
+	}
+}
+
+func (f *File) Read(p []byte) (int, error) {
+	return 0, io.EOF
 }
 
 func Open(fs *FS, name string) (*File, error) {
@@ -129,11 +140,7 @@ func Open(fs *FS, name string) (*File, error) {
 	if err != nil {
 		return nil, err
 	}
-	file, ok := element.(tree.File)
-	if !ok {
-		return nil, fmt.Errorf("Not a regular file: %s", name)
-	}
 	return &File{
-		handle: file,
+		Handle: element,
 	}, nil
 }

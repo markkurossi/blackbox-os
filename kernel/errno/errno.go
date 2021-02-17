@@ -11,6 +11,7 @@ import (
 )
 
 var (
+	ENOENT = errors.New("ENOENT")
 	EINVAL = errors.New("EINVAL")
 	ENOSYS = errors.New("ENOSYS")
 	EBADF  = errors.New("EBADF")

@@ -12,6 +12,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"os"
 	"regexp"
@@ -210,8 +211,7 @@ func tabCompletion(line string) (string, []string) {
 	// 		return tabSnapshotCompletion(p, line, parts, last)
 	// 	}
 	//
-	// 	return tabFileCompletion(p, line, parts, last)
-	return line, nil
+	return tabFileCompletion(line, parts, last)
 }
 
 // func tabSnapshotCompletion(p *process.Process, line string, parts CommandLine,
@@ -248,84 +248,84 @@ func tabCompletion(line string) (string, []string) {
 // 	}
 // }
 
-// func tabFileCompletion(p *process.Process, line string, parts CommandLine,
-// 	last string) (string, []string) {
-//
-// 	info, err := bbos.Stat(p, last)
-// 	if err == nil {
-// 		// An existing file.
-// 		if info.IsDir() {
-// 			if !strings.HasSuffix(last, "/") {
-// 				parts[len(parts)-1] = fmt.Sprintf("%s/", last)
-// 				return parts.String(), nil
-// 			}
-// 			files, err := bbos.ReadDir(p, last)
-// 			if err != nil {
-// 				return line, nil
-// 			}
-// 			var arr []string
-// 			for _, i := range files {
-// 				name := i.Name()
-// 				if i.IsDir() {
-// 					name += "/"
-// 				}
-// 				arr = append(arr, name)
-// 			}
-// 			switch len(arr) {
-// 			case 0:
-// 				return line, nil
-// 			case 1:
-// 				parts[len(parts)-1] = makeFilename(last, arr[0])
-// 				return parts.String(), nil
-// 			default:
-// 				return parts.String(), arr
-// 			}
-// 		} else {
-// 			// Return the line unmodified.
-// 			return line, nil
-// 		}
-// 	}
-//
-// 	// Check if `last' is a file name prefix.
-// 	path := file.PathSplit(last)
-// 	if len(path) > 0 {
-// 		last = path[len(path)-1]
-// 		path = path[:len(path)-1]
-// 	}
-// 	info, err = bbos.Stat(p, path.String())
-// 	if err != nil {
-// 		return line, nil
-// 	}
-// 	if info.IsDir() {
-// 		files, err := bbos.ReadDir(p, path.String())
-// 		if err != nil {
-// 			return line, nil
-// 		}
-// 		var arr []string
-// 		for _, i := range files {
-// 			if strings.HasPrefix(i.Name(), last) {
-// 				name := i.Name()
-// 				if i.IsDir() {
-// 					name += "/"
-// 				}
-// 				arr = append(arr, name)
-// 			}
-// 		}
-// 		switch len(arr) {
-// 		case 0:
-// 			return line, nil
-// 		case 1:
-// 			parts[len(parts)-1] = makeFilename(path.String(), arr[0])
-// 			return parts.String(), nil
-// 		default:
-// 			parts[len(parts)-1] = commonPrefix(arr)
-// 			return parts.String(), arr
-// 		}
-// 	} else {
-// 		// Return the line unmodified.
-// 		return line, nil
-// 	}
-// }
+func tabFileCompletion(line string, parts CommandLine, last string) (
+	string, []string) {
+
+	info, err := os.Stat(last)
+	if err == nil {
+		// An existing file.
+		if info.IsDir() {
+			if !strings.HasSuffix(last, "/") {
+				parts[len(parts)-1] = fmt.Sprintf("%s/", last)
+				return parts.String(), nil
+			}
+			files, err := ioutil.ReadDir(last)
+			if err != nil {
+				return line, nil
+			}
+			var arr []string
+			for _, i := range files {
+				name := i.Name()
+				if i.IsDir() {
+					name += "/"
+				}
+				arr = append(arr, name)
+			}
+			switch len(arr) {
+			case 0:
+				return line, nil
+			case 1:
+				parts[len(parts)-1] = makeFilename(last, arr[0])
+				return parts.String(), nil
+			default:
+				return parts.String(), arr
+			}
+		} else {
+			// Return the line unmodified.
+			return line, nil
+		}
+	}
+
+	// Check if `last' is a file name prefix.
+	path := file.PathSplit(last)
+	if len(path) > 0 {
+		last = path[len(path)-1]
+		path = path[:len(path)-1]
+	}
+	info, err = os.Stat(path.String())
+	if err != nil {
+		return line, nil
+	}
+	if info.IsDir() {
+		files, err := ioutil.ReadDir(path.String())
+		if err != nil {
+			return line, nil
+		}
+		var arr []string
+		for _, i := range files {
+			if strings.HasPrefix(i.Name(), last) {
+				name := i.Name()
+				if i.IsDir() {
+					name += "/"
+				}
+				arr = append(arr, name)
+			}
+		}
+		switch len(arr) {
+		case 0:
+			return line, nil
+		case 1:
+			parts[len(parts)-1] = makeFilename(path.String(), arr[0])
+			return parts.String(), nil
+		default:
+			parts[len(parts)-1] = commonPrefix(arr)
+			return parts.String(), arr
+		}
+	} else {
+		// Return the line unmodified.
+		return line, nil
+	}
+}
 
 func makeFilename(prefix, file string) string {
 	if len(prefix) == 0 {

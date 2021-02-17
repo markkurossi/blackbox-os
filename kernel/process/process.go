@@ -9,11 +9,13 @@ package process
 import (
 	"fmt"
 	"io"
+	iofs "io/fs"
 	"io/ioutil"
 	"net/http"
 	"syscall/js"
 
 	"github.com/markkurossi/backup/lib/crypto/zone"
+	"github.com/markkurossi/backup/lib/tree"
 	"github.com/markkurossi/blackbox-os/kernel/control"
 	"github.com/markkurossi/blackbox-os/kernel/errno"
 	"github.com/markkurossi/blackbox-os/kernel/fs"
@@ -123,7 +125,7 @@ func (p *Process) syscallHandler(id int, worker, event js.Value) error {
 		if err != nil {
 			return err
 		}
-		f, err := fs.Open(p.FS, string(filename))
+		f, err := fs.Open(p.FS, filename)
 		if err != nil {
 			kmsg.Printf("syscall: open: %s", err)
 			return errno.EINVAL
@@ -133,7 +135,10 @@ func (p *Process) syscallHandler(id int, worker, event js.Value) error {
 		syscallResult.Invoke(worker, id, nil, fd)
 
 	case "write":
-		fd := event.Get("fd").Int()
+		f, err := p.getFD(event)
+		if err != nil {
+			return err
+		}
 		data, err := getData(event, "data")
 		if err != nil {
 			return err
@@ -145,11 +150,6 @@ func (p *Process) syscallHandler(id int, worker, event js.Value) error {
 			return errno.EINVAL
 		}
 
-		f, ok := p.FDs[fd]
-		if !ok {
-			return errno.EBADF
-		}
-
 		n, err := f.Write(data[offset : offset+length])
 		if err != nil {
 			return err
@@ -158,13 +158,11 @@ func (p *Process) syscallHandler(id int, worker, event js.Value) error {
 		syscallResult.Invoke(worker, id, nil, n)
 
 	case "read":
-		fd := event.Get("fd").Int()
-		length := event.Get("length").Int()
-
-		f, ok := p.FDs[fd]
-		if !ok {
-			return errno.EBADF
+		f, err := p.getFD(event)
+		if err != nil {
+			return err
 		}
+		length := event.Get("length").Int()
 
 		data := make([]byte, length)
 		n, err := f.Read(data)
@@ -180,14 +178,35 @@ func (p *Process) syscallHandler(id int, worker, event js.Value) error {
 		js.CopyBytesToJS(buf, data[:n])
 		syscallResult.Invoke(worker, id, nil, n, buf)
 
+	case "fstat":
+		f, err := p.getFD(event)
+		if err != nil {
+			return err
+		}
+		info, err := p.stat(f.Native())
+		if err != nil {
+			return err
+		}
+		syscallResult.Invoke(worker, id, nil, 0, nil, js.ValueOf(info))
+
+	case "stat":
+		path, err := getString(event, "path")
+		if err != nil {
+			return err
+		}
+		info, err := p.stat(path)
+		if err != nil {
+			return err
+		}
+		syscallResult.Invoke(worker, id, nil, 0, nil, js.ValueOf(info))
+
 	case "ioctl":
-		fd := event.Get("fd").Int()
+		f, err := p.getFD(event)
+		if err != nil {
+			return err
+		}
 		switch event.Get("request").String() {
 		case "GetFlags":
-			f, ok := p.FDs[fd]
-			if !ok {
-				return errno.EBADF
-			}
 			var flags int
 			switch native := f.Native().(type) {
 			case *tty.Console:
@@ -199,10 +218,6 @@ func (p *Process) syscallHandler(id int, worker, event js.Value) error {
 			syscallResult.Invoke(worker, id, nil, flags)
 
 		case "SetFlags":
-			f, ok := p.FDs[fd]
-			if !ok {
-				return errno.EBADF
-			}
 			flags := event.Get("value").Int()
 
 			switch native := f.Native().(type) {
@@ -242,6 +257,22 @@ func (p *Process) syscallHandler(id int, worker, event js.Value) error {
 		js.CopyBytesToJS(buf, data)
 		syscallResult.Invoke(worker, id, nil, len(data), buf)
 
+	case "readdir":
+		path, err := getString(event, "path")
+		if err != nil {
+			return err
+		}
+		info, err := fs.ReadDir(p.FS, path)
+		if err != nil {
+			kmsg.Printf("syscall: readdir: %s", err)
+			return errno.EINVAL
+		}
+		var names []interface{}
+		for _, fi := range info {
+			names = append(names, fi.Name())
+		}
+		syscallResult.Invoke(worker, id, nil, 0, nil, js.ValueOf(names))
+
 	default:
 		kmsg.Printf("syscall: %s: not implemented\n",
 			event.Get("cmd").String())
@@ -249,6 +280,22 @@ func (p *Process) syscallHandler(id int, worker, event js.Value) error {
 	}
 
 	return nil
+}
+
+func (p *Process) getFD(event js.Value) (iface.FD, error) {
+	val := event.Get("fd")
+	switch val.Type() {
+	case js.TypeNumber:
+		fd := val.Int()
+		f, ok := p.FDs[fd]
+		if !ok {
+			return nil, errno.EBADF
+		}
+		return f, nil
+
+	default:
+		return nil, errno.EINVAL
+	}
 }
 
 func getData(event js.Value, name string) ([]byte, error) {
@@ -271,5 +318,57 @@ func getString(event js.Value, name string) (string, error) {
 
 	default:
 		return "", errno.EINVAL
+	}
+}
+
+func (p *Process) stat(native interface{}) (map[string]interface{}, error) {
+	result := map[string]interface{}{
+		"dev":     0,
+		"ino":     0,
+		"mode":    0,
+		"nlink":   0,
+		"uid":     0,
+		"gid":     0,
+		"rdev":    0,
+		"size":    0,
+		"blksize": 0,
+		"blocks":  0,
+		"atimeMs": 0,
+		"mtimeMs": 0,
+		"ctimeMs": 0,
+	}
+	_ = result
+
+	switch handle := native.(type) {
+	case *fs.File:
+		switch h := handle.Handle.(type) {
+		case *tree.Directory:
+			result["mode"] = int(iofs.ModeDir)
+			return result, nil
+
+		default:
+			kmsg.Printf("stat: invalid file: %T", h)
+			return nil, errno.EINVAL
+		}
+
+	case *tree.SimpleReader:
+		result["size"] = int(handle.Size())
+		return result, nil
+
+	case string:
+		info, err := fs.Stat(p.FS, handle)
+		if err != nil {
+			kmsg.Printf("stat: %s: %s", handle, err)
+			return nil, errno.ENOENT
+		}
+		if info.IsDir() {
+			result["mode"] = int(iofs.ModeDir)
+		}
+		result["size"] = int(info.Size())
+		return result, nil
+
+	default:
+		kmsg.Printf("stat: invalid handle: %T", handle)
+		return nil, errno.EINVAL
 	}
 }

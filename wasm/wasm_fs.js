@@ -42,12 +42,16 @@ global.fs = {
     close(fd, callback) { callback(enosys()); },
     fchmod(fd, mode, callback) { callback(enosys()); },
     fchown(fd, uid, gid, callback) { callback(enosys()); },
-    fstat(fd, callback) { callback(enosys()); },
+    fstat(fd, callback) {
+        syscall_fstat(fd, callback);
+    },
     fsync(fd, callback) { callback(null); },
     ftruncate(fd, length, callback) { callback(enosys()); },
     lchown(path, uid, gid, callback) { callback(enosys()); },
     link(path, link, callback) { callback(enosys()); },
-    lstat(path, callback) { callback(enosys()); },
+    lstat(path, callback) {
+        syscall_stat(path, callback);
+    },
     mkdir(path, perm, callback) { callback(enosys()); },
     open(path, flags, mode, callback) {
         syscall_open(path, flags, mode, callback);
@@ -59,26 +63,14 @@ global.fs = {
         }
         syscall_read(fd, buffer, offset, length, callback);
     },
-    readdir(path, callback) { callback(enosys()); },
+    readdir(path, callback) {
+        syscall_readdir(path, callback);
+    },
     readlink(path, callback) { callback(enosys()); },
     rename(from, to, callback) { callback(enosys()); },
     rmdir(path, callback) { callback(enosys()); },
     stat(path, callback) {
-        callback(null, {
-            dev: 0,
-            ino: 0,
-            mode: 0,
-            nlink: 0,
-            uid: 0,
-            gid: 0,
-            rdev: 0,
-            size: 0,
-            blksize: 0,
-            blocks: 0,
-            atimeMs: 0,
-            mtimeMs: 0,
-            ctimeMs: 0
-        });
+        syscall_stat(path, callback);
     },
     symlink(path, link, callback) { callback(enosys()); },
     truncate(path, length, callback) { callback(enosys()); },

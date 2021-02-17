@@ -44,7 +44,58 @@ function syscall_read(fd, buf, offset, length, callback) {
         cb: callback,
         buf: buf,
         offset: offset
-    })
+    });
+}
+
+function makeFileInfo(obj) {
+    if (obj) {
+        obj.isDirectory = function() {
+            return obj.mode == 0x80000000;
+        }
+        obj.isFile = function() {
+            return obj.mode == 0x0;
+        }
+    }
+    return obj
+}
+
+function syscall_fstat(fd, callback) {
+    let ctx = {
+        __cb: callback
+    }
+    ctx.cb = function(error, code) {
+        ctx.__cb(error, makeFileInfo(ctx.obj));
+    }
+    syscall({
+        cmd: "fstat",
+        fd: fd
+    }, ctx);
+}
+
+function syscall_stat(path, callback) {
+    let ctx = {
+        __cb: callback
+    }
+    ctx.cb = function(error, code) {
+        ctx.__cb(error, makeFileInfo(ctx.obj));
+    }
+    syscall({
+        cmd: "stat",
+        path: path
+    }, ctx);
+}
+
+function syscall_readdir(path, callback) {
+    let ctx = {
+        __cb: callback
+    }
+    ctx.cb = function(error, code) {
+        ctx.__cb(error, ctx.obj);
+    }
+    syscall({
+        cmd: "readdir",
+        path: path
+    }, ctx);
 }
 
 let syscall_id = 1;
@@ -102,6 +153,9 @@ function processEvent(e) {
             if (e.data.error) {
                 err = new Error(e.data.error);
                 err.code = e.data.error;
+            }
+            if (e.data.obj) {
+                ctx.obj = e.data.obj;
             }
             if (e.data.buf) {
                 if (ctx.buf) {

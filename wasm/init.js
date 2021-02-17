@@ -95,13 +95,14 @@ function syscallSpawn(onSyscall, code, ...argv) {
     return worker
 }
 
-function syscallResult(worker, id, error, ret, buf) {
+function syscallResult(worker, id, error, ret, buf, obj) {
     worker.postMessage({
         cmd: "result",
         id: id,
         error: error,
         code: ret,
         buf: buf,
+        obj: obj
     })
 }
 

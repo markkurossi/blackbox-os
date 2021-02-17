@@ -15,6 +15,7 @@ import (
 	"os"
 
 	"github.com/markkurossi/blackbox-os/lib/bbos"
+	"github.com/markkurossi/blackbox-os/lib/vt100"
 )
 
 func init() {
@@ -60,12 +61,16 @@ func cmd_cd(args []string) {
 }
 
 func cmd_ls(args []string) {
-	files, err := ioutil.ReadDir("/")
+	files, err := ioutil.ReadDir(".")
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "ls: %s\n", err)
 		return
 	}
-	fmt.Printf("%v\n", files)
+	var names []string
+	for _, f := range files {
+		names = append(names, f.Name())
+	}
+	vt100.Tabulate(names, os.Stdout)
 }
 
 func cmd_cat(args []string) {
