@@ -50,10 +50,10 @@ function syscall_read(fd, buf, offset, length, callback) {
 function makeFileInfo(obj) {
     if (obj) {
         obj.isDirectory = function() {
-            return obj.mode == 0x80000000;
+            return (obj.mode & 0040000) != 0;
         }
         obj.isFile = function() {
-            return obj.mode == 0x0;
+            return (obj.mode & 0100000) != 0;
         }
     }
     return obj

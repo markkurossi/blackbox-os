@@ -19,7 +19,6 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/markkurossi/blackbox-os/lib/bbos"
 	"github.com/markkurossi/blackbox-os/lib/file"
 	"github.com/markkurossi/blackbox-os/lib/vt100"
 )
@@ -166,7 +165,7 @@ func prompt() string {
 				case 'W':
 					dir := "{nodir}"
 
-					wd, err := bbos.Getwd()
+					wd, err := os.Getwd()
 					if err != nil {
 						fmt.Fprintf(os.Stderr, "Getwd: %s\n", err)
 					}
@@ -288,16 +287,21 @@ func tabFileCompletion(line string, parts CommandLine, last string) (
 
 	// Check if `last' is a file name prefix.
 	path := file.PathSplit(last)
-	if len(path) > 0 {
+	var dir string
+	if len(path) > 1 {
 		last = path[len(path)-1]
 		path = path[:len(path)-1]
+		dir = path.String()
+	} else {
+		path = []string{}
+		dir = "."
 	}
-	info, err = os.Stat(path.String())
+	info, err = os.Stat(dir)
 	if err != nil {
 		return line, nil
 	}
 	if info.IsDir() {
-		files, err := ioutil.ReadDir(path.String())
+		files, err := ioutil.ReadDir(dir)
 		if err != nil {
 			return line, nil
 		}

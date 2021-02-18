@@ -9,7 +9,6 @@ package process
 import (
 	"fmt"
 	"io"
-	iofs "io/fs"
 	"io/ioutil"
 	"net/http"
 	"syscall/js"
@@ -343,7 +342,7 @@ func (p *Process) stat(native interface{}) (map[string]interface{}, error) {
 	case *fs.File:
 		switch h := handle.Handle.(type) {
 		case *tree.Directory:
-			result["mode"] = int(iofs.ModeDir)
+			result["mode"] = fs.S_IFDIR
 			return result, nil
 
 		default:
@@ -353,6 +352,7 @@ func (p *Process) stat(native interface{}) (map[string]interface{}, error) {
 
 	case *tree.SimpleReader:
 		result["size"] = int(handle.Size())
+		result["mode"] = fs.S_IFREG
 		return result, nil
 
 	case string:
@@ -362,7 +362,9 @@ func (p *Process) stat(native interface{}) (map[string]interface{}, error) {
 			return nil, errno.ENOENT
 		}
 		if info.IsDir() {
-			result["mode"] = int(iofs.ModeDir)
+			result["mode"] = fs.S_IFDIR
+		} else {
+			result["mode"] = fs.S_IFREG
 		}
 		result["size"] = int(info.Size())
 		return result, nil
