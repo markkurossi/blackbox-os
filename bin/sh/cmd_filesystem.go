@@ -61,7 +61,27 @@ func cmd_cd(args []string) {
 }
 
 func cmd_ls(args []string) {
-	files, err := ioutil.ReadDir(".")
+	args = args[1:]
+	switch len(args) {
+	case 0:
+		ls(".")
+
+	case 1:
+		ls(args[0])
+
+	default:
+		for idx, arg := range args {
+			if idx > 0 {
+				fmt.Println()
+			}
+			fmt.Printf("%s:\n", arg)
+			ls(arg)
+		}
+	}
+}
+
+func ls(dir string) {
+	files, err := ioutil.ReadDir(dir)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "ls: %s\n", err)
 		return
