@@ -189,8 +189,14 @@ func (p *Process) syscallHandler(c chan error, id int, worker,
 		if err != nil {
 			return err
 		}
-		offset := event.Get("offset").Int()
-		length := event.Get("length").Int()
+		offset, err := getInt(event, "offset")
+		if err != nil {
+			return err
+		}
+		length, err := getInt(event, "length")
+		if err != nil {
+			return err
+		}
 
 		if offset < 0 || offset+length > len(data) {
 			return errno.EINVAL
@@ -208,7 +214,10 @@ func (p *Process) syscallHandler(c chan error, id int, worker,
 		if err != nil {
 			return err
 		}
-		length := event.Get("length").Int()
+		length, err := getInt(event, "length")
+		if err != nil {
+			return err
+		}
 
 		data := make([]byte, length)
 		n, err := f.Read(data)
@@ -264,7 +273,10 @@ func (p *Process) syscallHandler(c chan error, id int, worker,
 			syscallResult.Invoke(worker, id, nil, flags)
 
 		case "SetFlags":
-			flags := event.Get("value").Int()
+			flags, err := getInt(event, "value")
+			if err != nil {
+				return err
+			}
 
 			switch native := f.Native().(type) {
 			case *tty.Console:
@@ -320,13 +332,32 @@ func (p *Process) syscallHandler(c chan error, id int, worker,
 		syscallResult.Invoke(worker, id, nil, 0, nil, js.ValueOf(names))
 
 	case "spawn":
-		process, err := New(p.FDs[0].Dup(), p.FDs[1].Dup(), p.FDs[2].Dup(),
-			p.FS.Zone())
+		argv, err := getStringArray(event, "argv")
+		if err != nil {
+			return err
+		}
+		if len(argv) == 0 {
+			return errno.EINVAL
+		}
+		fds, err := getIntArray(event, "fds")
 		if err != nil {
 			return errno.EINVAL
 		}
+		process, err := New(nil, nil, nil, p.FS.Zone())
+		if err != nil {
+			return errno.EINVAL
+		}
+
+		for idx, fd := range fds {
+			f, ok := p.FDs[fd]
+			if !ok {
+				return errno.EINVAL
+			}
+			process.FDs[idx] = f.Dup()
+		}
+
 		go func() {
-			err := process.Run("echo", []string{"Hello, world!"})
+			err := process.Run(argv[0], argv[1:])
 			if err != nil {
 				fmt.Printf("process terminated: %v\n", err)
 			}
@@ -334,7 +365,10 @@ func (p *Process) syscallHandler(c chan error, id int, worker,
 		syscallResult.Invoke(worker, id, nil, process.ID)
 
 	case "wait":
-		pid := event.Get("pid").Int()
+		pid, err := getInt(event, "pid")
+		if err != nil {
+			return err
+		}
 		process, ok := byID[pid]
 		if !ok {
 			return errno.ENOENT
@@ -343,7 +377,11 @@ func (p *Process) syscallHandler(c chan error, id int, worker,
 		syscallResult.Invoke(worker, id, nil, code)
 
 	case "exit":
-		p.Exit(event.Get("code").Int())
+		code, err := getInt(event, "code")
+		if err != nil {
+			return err
+		}
+		p.Exit(code)
 		syscallResult.Invoke(worker, id, nil, 0)
 		c <- nil
 
@@ -357,18 +395,25 @@ func (p *Process) syscallHandler(c chan error, id int, worker,
 }
 
 func (p *Process) getFD(event js.Value) (iface.FD, error) {
-	val := event.Get("fd")
+	fd, err := getInt(event, "fd")
+	if err != nil {
+		return nil, err
+	}
+	f, ok := p.FDs[fd]
+	if !ok {
+		return nil, errno.EBADF
+	}
+	return f, nil
+}
+
+func getInt(event js.Value, name string) (int, error) {
+	val := event.Get(name)
 	switch val.Type() {
 	case js.TypeNumber:
-		fd := val.Int()
-		f, ok := p.FDs[fd]
-		if !ok {
-			return nil, errno.EBADF
-		}
-		return f, nil
+		return val.Int(), nil
 
 	default:
-		return nil, errno.EINVAL
+		return 0, errno.EINVAL
 	}
 }
 
@@ -392,6 +437,44 @@ func getString(event js.Value, name string) (string, error) {
 
 	default:
 		return "", errno.EINVAL
+	}
+}
+
+func getStringArray(event js.Value, name string) ([]string, error) {
+	val := event.Get(name)
+	switch val.Type() {
+	case js.TypeObject:
+		result := make([]string, val.Length())
+		for i := 0; i < len(result); i++ {
+			v := val.Index(i)
+			if v.Type() != js.TypeString {
+				return nil, errno.EINVAL
+			}
+			result[i] = v.String()
+		}
+		return result, nil
+
+	default:
+		return nil, errno.EINVAL
+	}
+}
+
+func getIntArray(event js.Value, name string) ([]int, error) {
+	val := event.Get(name)
+	switch val.Type() {
+	case js.TypeObject:
+		result := make([]int, val.Length())
+		for i := 0; i < len(result); i++ {
+			v := val.Index(i)
+			if v.Type() != js.TypeNumber {
+				return nil, errno.EINVAL
+			}
+			result[i] = v.Int()
+		}
+		return result, nil
+
+	default:
+		return nil, errno.EINVAL
 	}
 }
 

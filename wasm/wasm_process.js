@@ -4,8 +4,6 @@
 // All rights reserved.
 //
 
-console.log("wasm_process.js: global:", global);
-
 global.process = {
     __cwd: "/",
 
