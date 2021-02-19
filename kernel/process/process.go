@@ -11,6 +11,7 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
+	"sync"
 	"syscall/js"
 
 	"github.com/markkurossi/backup/lib/crypto/zone"
@@ -29,10 +30,20 @@ var (
 	uint8Array    = js.Global().Get("Uint8Array")
 )
 
+var (
+	byID   = make(map[int]*Process)
+	nextID = 0
+)
+
 type Process struct {
-	FDs    map[int]iface.FD
-	FS     *fs.FS
-	nextFD int
+	ID       int
+	mutex    sync.Mutex
+	cond     *sync.Cond
+	exited   bool
+	exitCode int
+	FDs      map[int]iface.FD
+	FS       *fs.FS
+	nextFD   int
 }
 
 func New(stdin, stdout, stderr iface.FD, z *zone.Zone) (*Process, error) {
@@ -41,10 +52,13 @@ func New(stdin, stdout, stderr iface.FD, z *zone.Zone) (*Process, error) {
 		return nil, err
 	}
 	p := &Process{
+		ID:     nextID,
 		FDs:    make(map[int]iface.FD),
 		FS:     fs,
 		nextFD: 3,
 	}
+	nextID++
+	p.cond = sync.NewCond(&p.mutex)
 
 	if stdin != nil {
 		p.FDs[0] = stdin
@@ -56,7 +70,28 @@ func New(stdin, stdout, stderr iface.FD, z *zone.Zone) (*Process, error) {
 		p.FDs[2] = stderr
 	}
 
+	byID[p.ID] = p
+
 	return p, nil
+}
+
+func (p *Process) Exit(code int) {
+	p.cond.L.Lock()
+
+	p.exitCode = code
+	p.exited = true
+	p.cond.Signal()
+
+	p.cond.L.Unlock()
+}
+
+func (p *Process) Wait() int {
+	p.cond.L.Lock()
+	for !p.exited {
+		p.cond.Wait()
+	}
+	p.cond.L.Unlock()
+	return p.exitCode
 }
 
 func (p *Process) NextFD() int {
@@ -75,10 +110,20 @@ func (p *Process) Run(cmd string, args []string) error {
 			kmsg.Printf("syscall: invalid arguments: %v\n", args)
 			return nil
 		}
-		go p.syscall(worker, args[0])
+		go p.syscall(c, worker, args[0])
 		return nil
 	})
-	// XXX onError
+	onError := js.FuncOf(func(this js.Value, args []js.Value) interface{} {
+		var message string
+		if len(args) != 1 {
+			kmsg.Printf("onerror: invalid arguments: %v\n", args)
+			message = "unknown error"
+		} else {
+			message = args[0].String()
+		}
+		c <- fmt.Errorf("onerror: %s", message)
+		return nil
+	})
 
 	resp, err := http.Get(fmt.Sprintf("%s/bin/%s.wasm", control.BaseURL, cmd))
 	if err != nil {
@@ -93,7 +138,7 @@ func (p *Process) Run(cmd string, args []string) error {
 	js.CopyBytesToJS(code, data)
 
 	argv := []interface{}{
-		onSyscall, code, cmd,
+		onSyscall, onError, p.ID, code, cmd,
 	}
 	for _, arg := range args {
 		argv = append(argv, arg)
@@ -104,20 +149,22 @@ func (p *Process) Run(cmd string, args []string) error {
 	return <-c
 }
 
-func (p *Process) syscall(worker, event js.Value) {
+func (p *Process) syscall(c chan error, worker, event js.Value) {
 	idVal := event.Get("id")
 	if idVal.IsNull() || idVal.IsUndefined() {
 		kmsg.Printf("syscall: no call ID")
 		return
 	}
 	id := idVal.Int()
-	err := p.syscallHandler(id, worker, event)
+	err := p.syscallHandler(c, id, worker, event)
 	if err != nil {
 		syscallResult.Invoke(worker, id, err.Error())
 	}
 }
 
-func (p *Process) syscallHandler(id int, worker, event js.Value) error {
+func (p *Process) syscallHandler(c chan error, id int, worker,
+	event js.Value) error {
+
 	switch event.Get("cmd").String() {
 	case "open":
 		filename, err := getString(event, "path")
@@ -271,6 +318,34 @@ func (p *Process) syscallHandler(id int, worker, event js.Value) error {
 			names = append(names, fi.Name())
 		}
 		syscallResult.Invoke(worker, id, nil, 0, nil, js.ValueOf(names))
+
+	case "spawn":
+		process, err := New(p.FDs[0].Dup(), p.FDs[1].Dup(), p.FDs[2].Dup(),
+			p.FS.Zone())
+		if err != nil {
+			return errno.EINVAL
+		}
+		go func() {
+			err := process.Run("echo", []string{"Hello, world!"})
+			if err != nil {
+				fmt.Printf("process terminated: %v\n", err)
+			}
+		}()
+		syscallResult.Invoke(worker, id, nil, process.ID)
+
+	case "wait":
+		pid := event.Get("pid").Int()
+		process, ok := byID[pid]
+		if !ok {
+			return errno.ENOENT
+		}
+		code := process.Wait()
+		syscallResult.Invoke(worker, id, nil, code)
+
+	case "exit":
+		p.Exit(event.Get("code").Int())
+		syscallResult.Invoke(worker, id, nil, 0)
+		c <- nil
 
 	default:
 		kmsg.Printf("syscall: %s: not implemented\n",

@@ -122,6 +122,7 @@ function processEvent(e) {
         let go = new Go();
 
         go.argv = e.data.argv || ["wasm"];
+        global.process.pid = e.data.pid;
 
         let mod, inst;
         console.time("WebAssembly")
@@ -135,10 +136,24 @@ function processEvent(e) {
                     await go.run(inst);
                     // reset instance
                     inst = await WebAssembly.instantiate(mod, go.importObject);
-                    console.log("halted");
+                    syscall({
+                        cmd: "exit",
+                        code: 0
+                    });
+                    try {
+                        if (close) {
+                            close()
+                        }
+                    } catch (error) {
+                        console.error(error);
+                    }
                 }
-                console.log("running")
-                run();
+                run()
+                .then(() => {
+                    console.log("process terminated");
+                }, error => {
+                    console.error("error:", error);
+                })
             });
         break;
 

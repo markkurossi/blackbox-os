@@ -79,15 +79,20 @@ function uninit() {
 
 /***************************** Process handling *****************************/
 
-function syscallSpawn(onSyscall, code, ...argv) {
+function syscallSpawn(onSyscall, onError, pid, code, ...argv) {
     const worker = new Worker("process.js?_ts=" + new Date().getTime());
 
     worker.onmessage = function(e) {
         console.log("syscall:", e.data);
         onSyscall(e.data);
     }
+    worker.onerror = function(e) {
+        console.log("onerror:", e.message);
+        onError(e.message);
+    }
     worker.postMessage({
         cmd: "init",
+        pid: pid,
         argv: argv,
         code: code,
     })
