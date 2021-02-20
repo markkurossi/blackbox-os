@@ -64,23 +64,22 @@ func runInit() error {
 	}
 
 	// Run init.
-	for control.KernelPower != 0 {
-		process, err := process.New(iface.NewFD(console), iface.NewFD(console),
-			iface.NewFD(console), Zone)
-		if err != nil {
-			return fmt.Errorf("Failed to create init process: %s", err)
-		}
-		motd, err := fs.Open(process.FS, "/etc/motd")
-		if err != nil {
-			fmt.Fprintf(console, "Black Box OS\n\n")
-		} else {
-			io.Copy(console, motd.Reader())
-		}
+	process, err := process.New(iface.NewFD(console), iface.NewFD(console),
+		iface.NewFD(console), Zone)
+	if err != nil {
+		return fmt.Errorf("Failed to create init process: %s", err)
+	}
+	motd, err := fs.Open(process.FS, "/etc/motd")
+	if err != nil {
+		fmt.Fprintf(console, "Black Box OS\n\n")
+	} else {
+		io.Copy(console, motd.Reader())
+	}
 
-		err = process.Run("sh", []string{})
-		if err != nil {
-			return err
-		}
+	fmt.Fprintf(console, "\nType `help' for list of available commands.\n")
+	err = process.Run("sh", []string{})
+	if err != nil {
+		return err
 	}
 	return nil
 }

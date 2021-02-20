@@ -129,6 +129,9 @@ func (p *Process) Run(cmd string, args []string) error {
 	if err != nil {
 		return fmt.Errorf("process: load %v: %w", cmd, err)
 	}
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("process: load %v: %s", cmd, resp.Status)
+	}
 	data, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return fmt.Errorf("process: read data: %w", err)
@@ -360,6 +363,7 @@ func (p *Process) syscallHandler(c chan error, id int, worker,
 			err := process.Run(argv[0], argv[1:])
 			if err != nil {
 				fmt.Printf("process terminated: %v\n", err)
+				process.Exit(1)
 			}
 		}()
 		syscallResult.Invoke(worker, id, nil, process.ID)

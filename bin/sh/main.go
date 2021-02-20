@@ -19,6 +19,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/markkurossi/blackbox-os/lib/bbos"
 	"github.com/markkurossi/blackbox-os/lib/file"
 	"github.com/markkurossi/blackbox-os/lib/vt100"
 )
@@ -30,7 +31,11 @@ type Builtin struct {
 	Cmd  func(args []string)
 }
 
-var builtin []Builtin
+var (
+	builtin  []Builtin
+	builtins map[string]Builtin
+	running  = true
+)
 
 type CommandLine []string
 
@@ -83,12 +88,12 @@ func init() {
 		// 		js.Global().Get("alert").Invoke(strings.Join(args[1:], " "))
 		// 	},
 		// },
-		// Builtin{
-		// 	Name: "halt",
-		// 	Cmd: func(p *process.Process, args []string) {
-		// 		control.Halt()
-		// 	},
-		// },
+		Builtin{
+			Name: "exit",
+			Cmd: func(args []string) {
+				running = false
+			},
+		},
 		Builtin{
 			Name: "help",
 			Cmd:  cmd_help,
@@ -114,14 +119,17 @@ func readLine(in io.Reader) string {
 }
 
 func main() {
+	builtins = make(map[string]Builtin)
+	for _, bi := range builtin {
+		builtins[bi.Name] = bi
+	}
+
 	rl := vt100.NewReadline(os.Stdin, os.Stdout, os.Stderr)
 	rl.Tab = func(line string) (string, []string) {
 		return tabCompletion(line)
 	}
 
-	fmt.Printf("\nType `help' for list of available commands.\n")
-
-	for {
+	for running {
 		line, err := rl.Read(prompt())
 		fmt.Fprintf(os.Stdout, "\n")
 		if err != nil {
@@ -132,23 +140,39 @@ func main() {
 			continue
 		}
 
-		var found bool
-
-		for _, cmd := range builtin {
-			if args[0] == cmd.Name {
-				found = true
-				os.Args = args
-				flag.CommandLine = flag.NewFlagSet(args[0],
-					flag.ContinueOnError)
-				flag.CommandLine.SetOutput(os.Stdout)
-				cmd.Cmd(args)
-				break
-			}
-		}
-		if !found {
-			fmt.Fprintf(os.Stderr, "Unknown command '%s'\n", args[0])
+		err = runCommand(args)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "%s: %s\n", args[0], err)
 		}
 	}
+}
+
+func runCommand(args []string) error {
+	bi, ok := builtins[args[0]]
+	if ok {
+		os.Args = args
+		flag.CommandLine = flag.NewFlagSet(args[0], flag.ContinueOnError)
+		flag.CommandLine.SetOutput(os.Stdout)
+		bi.Cmd(args)
+	} else {
+		// Run as process.
+		pid, err := bbos.Spawn(args, []int{
+			int(os.Stdin.Fd()),
+			int(os.Stdout.Fd()),
+			int(os.Stderr.Fd()),
+		})
+		if err != nil {
+			return err
+		}
+		code, err := bbos.Wait(pid)
+		if err != nil {
+			return err
+		}
+		if code != 0 {
+			fmt.Printf("%d: Exit %d: %s\n", pid, code, args[0])
+		}
+	}
+	return nil
 }
 
 func prompt() string {
