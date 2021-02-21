@@ -1,0 +1,22 @@
+//
+// readline.go
+//
+// Copyright (c) 2018-2021 Markku Rossi
+//
+// All rights reserved.
+//
+
+package vt100
+
+import (
+	"fmt"
+	"os"
+)
+
+func ReadPassword(prompt string) (string, error) {
+	rl := NewReadline(os.Stdin, os.Stdout, os.Stderr)
+	rl.Masked = true
+	password, err := rl.Read(prompt)
+	fmt.Fprintln(os.Stdout)
+	return password, err
+}

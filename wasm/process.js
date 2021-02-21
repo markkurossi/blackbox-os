@@ -7,17 +7,29 @@
 //
 
 importScripts('wasm_exec.js');
-importScripts('wasm_fs.js');
+importScripts('wasm_fs.js?_st' + new Date().getTime());
+importScripts('wasm_process.js?_st' + new Date().getTime());
 
 const utf8Encode = new TextEncoder();
 
+function syscall_open(path, flags, mode, callback) {
+    syscall({
+        cmd: "open",
+        path: path,
+        flags: flags,
+        mode: mode
+    }, {
+        cb: callback
+    });
+}
+
 function syscall_write(fd, buf, offset, length, callback) {
     syscall({
-        type: "write",
+        cmd: "write",
         fd: fd,
         data: buf,
         offset: offset,
-        length: length,
+        length: length
     }, {
         cb: callback
     });
@@ -25,14 +37,65 @@ function syscall_write(fd, buf, offset, length, callback) {
 
 function syscall_read(fd, buf, offset, length, callback) {
     syscall({
-        type: "read",
+        cmd: "read",
         fd: fd,
         length: length
     }, {
         cb: callback,
         buf: buf,
         offset: offset
-    })
+    });
+}
+
+function makeFileInfo(obj) {
+    if (obj) {
+        obj.isDirectory = function() {
+            return (obj.mode & 0040000) != 0;
+        }
+        obj.isFile = function() {
+            return (obj.mode & 0100000) != 0;
+        }
+    }
+    return obj
+}
+
+function syscall_fstat(fd, callback) {
+    let ctx = {
+        __cb: callback
+    }
+    ctx.cb = function(error, code) {
+        ctx.__cb(error, makeFileInfo(ctx.obj));
+    }
+    syscall({
+        cmd: "fstat",
+        fd: fd
+    }, ctx);
+}
+
+function syscall_stat(path, callback) {
+    let ctx = {
+        __cb: callback
+    }
+    ctx.cb = function(error, code) {
+        ctx.__cb(error, makeFileInfo(ctx.obj));
+    }
+    syscall({
+        cmd: "stat",
+        path: path
+    }, ctx);
+}
+
+function syscall_readdir(path, callback) {
+    let ctx = {
+        __cb: callback
+    }
+    ctx.cb = function(error, code) {
+        ctx.__cb(error, ctx.obj);
+    }
+    syscall({
+        cmd: "readdir",
+        path: path
+    }, ctx);
 }
 
 let syscall_id = 1;
@@ -53,12 +116,13 @@ onmessage = function(e) {
 }
 
 function processEvent(e) {
-    console.log("processEvent:", e.data);
-    switch (e.data.command) {
+    console.log("process:", e.data);
+    switch (e.data.cmd) {
     case "init":
         let go = new Go();
 
         go.argv = e.data.argv || ["wasm"];
+        global.process.pid = e.data.pid;
 
         let mod, inst;
         console.time("WebAssembly")
@@ -72,17 +136,31 @@ function processEvent(e) {
                     await go.run(inst);
                     // reset instance
                     inst = await WebAssembly.instantiate(mod, go.importObject);
-                    console.log("halted");
+                    syscall({
+                        cmd: "exit",
+                        code: 0
+                    });
+                    try {
+                        if (close) {
+                            close()
+                        }
+                    } catch (error) {
+                        console.error(error);
+                    }
                 }
-                console.log("running")
-                run();
+                run()
+                .then(() => {
+                    console.log("process terminated");
+                }, error => {
+                    console.error("error:", error);
+                })
             });
         break;
 
     case "result":
         let ctx = syscall_pending.get(e.data.id);
         if (!ctx) {
-            console.error("unknown syscall result:", e.data.id);
+            console.error("unknown syscall result: id=%d", e.data.id);
         } else {
             syscall_pending.delete(e.data.id);
 
@@ -91,11 +169,17 @@ function processEvent(e) {
                 err = new Error(e.data.error);
                 err.code = e.data.error;
             }
-            if (e.data.buf && ctx.buf) {
-                ctx.buf.set(e.data.buf, ctx.offset);
+            if (e.data.obj) {
+                ctx.obj = e.data.obj;
             }
-
-            ctx.cb(err, e.data.code);
+            if (e.data.buf) {
+                if (ctx.buf) {
+                    ctx.buf.set(e.data.buf, ctx.offset || 0);
+                }
+                ctx.cb(err, e.data.code, e.data.buf);
+            } else {
+                ctx.cb(err, e.data.code);
+            }
         }
         break;
 

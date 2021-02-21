@@ -19,7 +19,9 @@ type state func(rl *Readline, b byte, prompt string) bool
 
 type Readline struct {
 	Tab    TabCompletion
-	tty    TTY
+	Masked bool
+	stdin  io.Reader
+	stdout io.Writer
 	stderr io.Writer
 	buf    []byte
 	state  state
@@ -27,9 +29,10 @@ type Readline struct {
 	tail   int
 }
 
-func NewReadline(tty TTY, stderr io.Writer) *Readline {
+func NewReadline(stdin io.Reader, stdout, stderr io.Writer) *Readline {
 	return &Readline{
-		tty:    tty,
+		stdin:  stdin,
+		stdout: stdout,
 		stderr: stderr,
 		buf:    make([]byte, 1024),
 		state:  rlStart,
@@ -37,17 +40,19 @@ func NewReadline(tty TTY, stderr io.Writer) *Readline {
 }
 
 func (rl *Readline) Read(prompt string) (string, error) {
-	flags := rl.tty.Flags()
-	rl.tty.SetFlags(flags & ^(ICANON | ECHO))
-	defer rl.tty.SetFlags(flags)
+	flags, err := MakeRaw(rl.stdin)
+	if err != nil {
+		return "", err
+	}
+	defer MakeCooked(rl.stdin, flags)
 
 	rl.cursor = 0
 	rl.tail = 0
-	fmt.Fprintf(rl.tty, "%s", prompt)
+	fmt.Fprintf(rl.stdout, "%s", prompt)
 
 	var buf [1]byte
 	for {
-		_, err := rl.tty.Read(buf[:])
+		_, err := rl.stdin.Read(buf[:])
 		if err != nil {
 			return rl.line(), err
 		}
@@ -66,6 +71,16 @@ func (rl *Readline) input(b byte, prompt string) bool {
 	return rl.state(rl, b, prompt)
 }
 
+func (rl *Readline) output(b []byte) {
+	if rl.Masked {
+		for i := 0; i < len(b); i++ {
+			rl.stdout.Write([]byte{'*'})
+		}
+	} else {
+		rl.stdout.Write(b)
+	}
+}
+
 func rlStart(rl *Readline, b byte, prompt string) bool {
 	switch b {
 	case 0x1b: // ESC
@@ -74,7 +89,7 @@ func rlStart(rl *Readline, b byte, prompt string) bool {
 
 	case 0x01: // C-a
 		for rl.cursor > 0 {
-			Backspace(rl.tty)
+			Backspace(rl.stdout)
 			rl.cursor--
 		}
 
@@ -83,7 +98,7 @@ func rlStart(rl *Readline, b byte, prompt string) bool {
 
 	case 0x04: // C-d
 		if rl.cursor < rl.tail {
-			DeleteChar(rl.tty)
+			DeleteChar(rl.stdout)
 			rl.cursor++
 			rl.delete()
 		}
@@ -102,45 +117,45 @@ func rlStart(rl *Readline, b byte, prompt string) bool {
 
 			// Line contains expanded line.
 			for rl.cursor > 0 {
-				Backspace(rl.tty)
+				Backspace(rl.stdout)
 				rl.cursor--
 			}
-			EraseLineTail(rl.tty)
+			EraseLineTail(rl.stdout)
 
 			l := []byte(line)
 			rl.tail = copy(rl.buf, l)
 			rl.cursor = rl.tail
 
-			rl.tty.Write(rl.buf[:rl.tail])
+			rl.output(rl.buf[:rl.tail])
 
 			// Print completions.
 			if len(completions) > 0 {
-				fmt.Fprintf(rl.tty, "\n")
-				Tabulate(completions, rl.tty)
-				fmt.Fprintf(rl.tty, "%s", prompt)
-				rl.tty.Write(rl.buf[:rl.tail])
+				fmt.Fprintf(rl.stdout, "\n")
+				Tabulate(completions, rl.stdout)
+				fmt.Fprintf(rl.stdout, "%s", prompt)
+				rl.output(rl.buf[:rl.tail])
 			}
 		}
 
 	case 0x0b: // C-k
 		rl.tail = rl.cursor
-		EraseLineTail(rl.tty)
+		EraseLineTail(rl.stdout)
 
 	case 0x0c: // C-l
-		EraseScreen(rl.tty)
-		MoveTo(rl.tty, 0, 0)
-		fmt.Fprintf(rl.tty, "%s", prompt)
-		rl.tty.Write(rl.buf[:rl.tail])
+		EraseScreen(rl.stdout)
+		MoveTo(rl.stdout, 0, 0)
+		fmt.Fprintf(rl.stdout, "%s", prompt)
+		rl.output(rl.buf[:rl.tail])
 
 	case 0x7f: // Delete
 		if rl.cursor == 0 {
 			break
 		}
-		Backspace(rl.tty)
+		Backspace(rl.stdout)
 		if rl.cursor == rl.tail {
-			EraseLineTail(rl.tty)
+			EraseLineTail(rl.stdout)
 		} else {
-			DeleteChar(rl.tty)
+			DeleteChar(rl.stdout)
 		}
 		rl.delete()
 
@@ -152,11 +167,11 @@ func rlStart(rl *Readline, b byte, prompt string) bool {
 			rl.insert(b)
 
 			// Print line.
-			rl.tty.Write(rl.buf[rl.cursor-1 : rl.tail])
+			rl.output(rl.buf[rl.cursor-1 : rl.tail])
 
 			// Move cursor back to its position.
 			for i := rl.tail; i > rl.cursor; i-- {
-				Backspace(rl.tty)
+				Backspace(rl.stdout)
 			}
 		} else {
 			fmt.Fprintf(rl.stderr, "readline: skipping non-printable 0x%x\n", b)
@@ -192,14 +207,14 @@ func rlCSI(rl *Readline, b byte, prompt string) bool {
 
 func (rl *Readline) cursorLeft() {
 	if rl.cursor > 0 {
-		Backspace(rl.tty)
+		Backspace(rl.stdout)
 		rl.cursor--
 	}
 }
 
 func (rl *Readline) cursorRight() {
 	if rl.cursor < rl.tail {
-		CursorForward(rl.tty)
+		CursorForward(rl.stdout)
 		rl.cursor++
 	}
 }

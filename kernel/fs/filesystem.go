@@ -1,12 +1,12 @@
 //
 // filesystem.go
 //
-// Copyright (c) 2018, 2019 Markku Rossi
+// Copyright (c) 2018-2021 Markku Rossi
 //
 // All rights reserved.
 //
 
-package bbos
+package fs
 
 import (
 	"fmt"
@@ -15,7 +15,6 @@ import (
 	"time"
 
 	"github.com/markkurossi/backup/lib/tree"
-	"github.com/markkurossi/blackbox-os/kernel/process"
 )
 
 type FileInfo struct {
@@ -50,12 +49,12 @@ func (info *FileInfo) Sys() interface{} {
 	return info.element
 }
 
-func Stat(p *process.Process, name string) (os.FileInfo, error) {
-	path, err := p.ResolvePath(name)
+func Stat(fs *FS, name string) (os.FileInfo, error) {
+	path, err := fs.ResolvePath(name)
 	if err != nil {
 		return nil, err
 	}
-	element, err := tree.DeserializeID(path[len(path)-1].ID, p.FS.Zone)
+	element, err := tree.DeserializeID(path[len(path)-1].ID, fs.Zone())
 	if err != nil {
 		return nil, err
 	}
@@ -79,8 +78,8 @@ func Stat(p *process.Process, name string) (os.FileInfo, error) {
 	}
 }
 
-func ReadDir(p *process.Process, dirname string) ([]os.FileInfo, error) {
-	info, err := Stat(p, dirname)
+func ReadDir(fs *FS, dirname string) ([]os.FileInfo, error) {
+	info, err := Stat(fs, dirname)
 	if err != nil {
 		return nil, err
 	}
@@ -90,7 +89,7 @@ func ReadDir(p *process.Process, dirname string) ([]os.FileInfo, error) {
 	}
 
 	// XXX resolve path twice: here and Stat above
-	path, err := p.ResolvePath(dirname)
+	path, err := fs.ResolvePath(dirname)
 	if err != nil {
 		return nil, err
 	}
@@ -98,7 +97,7 @@ func ReadDir(p *process.Process, dirname string) ([]os.FileInfo, error) {
 
 	var result []os.FileInfo
 	for _, entry := range dir.Entries {
-		i, err := Stat(p, fmt.Sprintf("%s/%s", dirName, entry.Name))
+		i, err := Stat(fs, fmt.Sprintf("%s/%s", dirName, entry.Name))
 		if err != nil {
 			return nil, err
 		}
@@ -113,28 +112,35 @@ func ReadDir(p *process.Process, dirname string) ([]os.FileInfo, error) {
 }
 
 type File struct {
-	handle tree.File
+	Handle tree.Element
 }
 
 func (f *File) Reader() io.Reader {
-	return f.handle.Reader()
+	switch native := f.Handle.(type) {
+	case tree.File:
+		return native.Reader()
+
+	default:
+		fmt.Fprintf(os.Stderr, "read: %T", native)
+		return f
+	}
 }
 
-func Open(p *process.Process, name string) (*File, error) {
-	path, err := p.ResolvePath(name)
+func (f *File) Read(p []byte) (int, error) {
+	return 0, io.EOF
+}
+
+func Open(fs *FS, name string) (*File, error) {
+	path, err := fs.ResolvePath(name)
 	if err != nil {
 		return nil, err
 	}
 
-	element, err := tree.DeserializeID(path[len(path)-1].ID, p.FS.Zone)
+	element, err := tree.DeserializeID(path[len(path)-1].ID, fs.Zone())
 	if err != nil {
 		return nil, err
 	}
-	file, ok := element.(tree.File)
-	if !ok {
-		return nil, fmt.Errorf("Not a regular file: %s", name)
-	}
 	return &File{
-		handle: file,
+		Handle: element,
 	}, nil
 }

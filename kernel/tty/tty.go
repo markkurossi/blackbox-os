@@ -6,7 +6,7 @@
 // All rights reserved.
 //
 
-package vt100
+package tty
 
 type TTYFlags uint
 

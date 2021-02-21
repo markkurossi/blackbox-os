@@ -9,7 +9,7 @@ package main
 import (
 	"flag"
 	"fmt"
-	"os"
+	"strings"
 )
 
 func main() {
@@ -17,23 +17,72 @@ func main() {
 	escapes := flag.Bool("e", false, "interpret backslash escapes")
 	flag.Parse()
 
-	var buf [1024]byte
-	n, err := os.Stdin.Read(buf[:])
-	if err != nil {
-		fmt.Printf("read failed: %s\n", err)
-	} else {
-		os.Stdout.Write(buf[:n])
-	}
-
-	_ = escapes
+	var sb strings.Builder
 
 	for idx, arg := range flag.Args() {
 		if idx > 0 {
-			fmt.Print(" ")
+			sb.WriteRune(' ')
 		}
-		fmt.Print(arg)
+		if *escapes {
+			runes := []rune(arg)
+			for i := 0; i < len(runes); i++ {
+				switch runes[i] {
+				case '\\':
+					if i+1 >= len(runes) {
+						sb.WriteRune(runes[i])
+						continue
+					}
+					i++
+					switch runes[i] {
+					case 'a':
+						sb.WriteRune('\a')
+					case 'b':
+						sb.WriteRune('\b')
+					case 'c':
+						*suppressNewline = true
+					case 'E':
+						sb.WriteRune('\033')
+					case 'f':
+						sb.WriteRune('\f')
+					case 'n':
+						sb.WriteRune('\n')
+					case 'r':
+						sb.WriteRune('\r')
+					case 't':
+						sb.WriteRune('\t')
+					case 'v':
+						sb.WriteRune('\v')
+					case '\\':
+						sb.WriteRune('\\')
+					case '0':
+						var val int
+						for j := 0; j < 3; j++ {
+							if i+1 >= len(runes) || runes[i+1] < '0' ||
+								runes[i+1] > '7' {
+								break
+							}
+							i++
+							val *= 8
+							val += int(runes[i] - '0')
+						}
+						sb.WriteRune(rune(val))
+
+					default:
+						sb.WriteRune('\\')
+						sb.WriteRune(runes[i])
+					}
+
+				default:
+					sb.WriteRune(runes[i])
+				}
+			}
+		} else {
+			sb.WriteString(arg)
+		}
 	}
-	if !*suppressNewline {
-		fmt.Println()
+	if *suppressNewline {
+		fmt.Print(sb.String())
+	} else {
+		fmt.Println(sb.String())
 	}
 }

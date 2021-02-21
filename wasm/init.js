@@ -79,14 +79,20 @@ function uninit() {
 
 /***************************** Process handling *****************************/
 
-function syscallSpawn(onSyscall, code, ...argv) {
+function syscallSpawn(onSyscall, onError, pid, code, ...argv) {
     const worker = new Worker("process.js?_ts=" + new Date().getTime());
 
     worker.onmessage = function(e) {
+        console.log("syscall:", e.data);
         onSyscall(e.data);
     }
+    worker.onerror = function(e) {
+        console.log("onerror:", e.message);
+        onError(e.message);
+    }
     worker.postMessage({
-        command: "init",
+        cmd: "init",
+        pid: pid,
         argv: argv,
         code: code,
     })
@@ -94,13 +100,14 @@ function syscallSpawn(onSyscall, code, ...argv) {
     return worker
 }
 
-function syscallResult(worker, id, error, ret, buf) {
+function syscallResult(worker, id, error, ret, buf, obj) {
     worker.postMessage({
-        command: "result",
+        cmd: "result",
         id: id,
         error: error,
         code: ret,
         buf: buf,
+        obj: obj
     })
 }
 
@@ -115,7 +122,7 @@ function syscallSpawnFetch(onSyscall, code, ...argv) {
         response.arrayBuffer()
     ).then(bytes =>
         worker.postMessage({
-            command: "init",
+            cmd: "init",
             argv: argv,
             code: bytes,
         })

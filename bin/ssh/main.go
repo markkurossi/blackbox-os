@@ -1,46 +1,41 @@
 //
-// cmd_ssh.go
-//
-// Copyright (c) 2018 Markku Rossi
+// Copyright (c) 2018-2021 Markku Rossi
 //
 // All rights reserved.
 //
 
-package shell
+package main
 
 import (
+	"flag"
 	"fmt"
 	"io"
 	"net"
+	"os"
 	"regexp"
 	"time"
 
-	"github.com/markkurossi/blackbox-os/kernel/control"
-	"github.com/markkurossi/blackbox-os/kernel/network"
-	"github.com/markkurossi/blackbox-os/kernel/process"
+	"github.com/markkurossi/blackbox-os/lib/bbos"
 	"github.com/markkurossi/blackbox-os/lib/vt100"
 	"golang.org/x/crypto/ssh"
 )
 
-func init() {
-	builtin = append(builtin, Builtin{
-		Name: "ssh",
-		Cmd:  cmd_ssh,
-	})
-}
-
 var reTarget *regexp.Regexp = regexp.MustCompilePOSIX(
 	"(([^@]+)@)?([^:]+)(:.*)?")
 
-func cmd_ssh(p *process.Process, args []string) {
-	if len(args) < 2 {
-		fmt.Fprintf(p.Stdout, "Usage: ssh [user@]host[:port]\n")
+func main() {
+	flag.Parse()
+
+	args := flag.Args()
+
+	if len(args) < 1 {
+		fmt.Printf("Usage: ssh [user@]host[:port]\n")
 		return
 	}
 
-	matches := reTarget.FindStringSubmatch(args[1])
+	matches := reTarget.FindStringSubmatch(args[0])
 	if matches == nil {
-		fmt.Fprintf(p.Stderr, "Invalid target '%s'\n", args[1])
+		fmt.Fprintf(os.Stderr, "Invalid target '%s'\n", args[0])
 		return
 	}
 
@@ -57,16 +52,16 @@ func cmd_ssh(p *process.Process, args []string) {
 	}
 	addr := host + port
 
-	err := sshConnection(p, user, addr)
+	err := sshConnection(user, addr)
 	if err != nil {
-		fmt.Fprintf(p.Stderr, "SSH error: %s\n", err)
+		fmt.Fprintf(os.Stderr, "SSH error: %s\n", err)
 	}
 }
 
-func sshConnection(p *process.Process, user, addr string) error {
-	fmt.Fprintf(p.Stdout, "Connecting to %s@%s...\n", user, addr)
+func sshConnection(user, addr string) error {
+	fmt.Printf("Connecting to %s@%s...\n", user, addr)
 
-	conn, err := network.DialTimeout(control.WSProxy, addr, 5*time.Second)
+	conn, err := bbos.DialTimeout("tcp", addr, 5*time.Second)
 	if err != nil {
 		return err
 	}
@@ -74,12 +69,8 @@ func sshConnection(p *process.Process, user, addr string) error {
 
 	var authMethods = []ssh.AuthMethod{
 		ssh.PasswordCallback(func() (secret string, err error) {
-			fmt.Fprintf(p.Stdout, "%s@%s's password: ", user, addr)
-			flags := p.TTY.Flags()
-			p.TTY.SetFlags(flags & ^vt100.ECHO)
-			defer p.TTY.SetFlags(flags)
-			passwd := readLine(p.Stdin)
-			return passwd, nil
+			return vt100.ReadPassword(
+				fmt.Sprintf("%s@%s's password: ", user, addr))
 		}),
 	}
 
@@ -88,7 +79,7 @@ func sshConnection(p *process.Process, user, addr string) error {
 		Auth: authMethods,
 		HostKeyCallback: func(
 			hostname string, remote net.Addr, key ssh.PublicKey) error {
-			fmt.Fprintf(p.Stdout, "%s key fingerprint is %s.\n",
+			fmt.Printf("%s key fingerprint is %s.\n",
 				key.Type(), ssh.FingerprintSHA256(key))
 			return nil
 		},
@@ -132,14 +123,16 @@ func sshConnection(p *process.Process, user, addr string) error {
 	}
 
 	// Enable raw mode for input.
-	flags := p.TTY.Flags()
-	p.TTY.SetFlags(flags & ^(vt100.ICANON | vt100.ECHO))
-	defer p.TTY.SetFlags(flags)
+	flags, err := vt100.MakeRaw(os.Stdin)
+	if err != nil {
+		return err
+	}
+	defer vt100.MakeCooked(os.Stdin, flags)
 
-	go io.Copy(stdin, p.Stdin)
-	go io.Copy(p.Stderr, stderr)
+	go io.Copy(stdin, os.Stdin)
+	go io.Copy(os.Stderr, stderr)
 
-	io.Copy(p.Stdout, stdout)
+	io.Copy(os.Stdout, stdout)
 
 	return nil
 }

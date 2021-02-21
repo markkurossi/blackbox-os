@@ -1,7 +1,7 @@
 //
 // kernel.go
 //
-// Copyright (c) 2018-2019 Markku Rossi
+// Copyright (c) 2018-2021 Markku Rossi
 //
 // All rights reserved.
 //
@@ -16,11 +16,11 @@ import (
 	"github.com/markkurossi/backup/lib/crypto/identity"
 	"github.com/markkurossi/backup/lib/crypto/zone"
 	"github.com/markkurossi/backup/lib/persistence"
-	"github.com/markkurossi/blackbox-os/commands/shell"
 	"github.com/markkurossi/blackbox-os/kernel/control"
+	"github.com/markkurossi/blackbox-os/kernel/fs"
+	"github.com/markkurossi/blackbox-os/kernel/iface"
 	"github.com/markkurossi/blackbox-os/kernel/process"
 	"github.com/markkurossi/blackbox-os/kernel/tty"
-	"github.com/markkurossi/blackbox-os/lib/bbos"
 )
 
 var (
@@ -63,18 +63,23 @@ func runInit() error {
 			control.FSZone, err)
 	}
 
-	process, err := process.NewProcess(console, Zone)
+	// Run init.
+	process, err := process.New(iface.NewFD(console), iface.NewFD(console),
+		iface.NewFD(console), Zone)
 	if err != nil {
 		return fmt.Errorf("Failed to create init process: %s", err)
 	}
-	motd, err := bbos.Open(process, "/etc/motd")
+	motd, err := fs.Open(process.FS, "/etc/motd")
 	if err != nil {
 		fmt.Fprintf(console, "Black Box OS\n\n")
 	} else {
-		io.Copy(process.Stdout, motd.Reader())
+		io.Copy(console, motd.Reader())
 	}
 
 	fmt.Fprintf(console, "\nType `help' for list of available commands.\n")
-
-	return shell.Shell(process)
+	err = process.Run("sh", []string{})
+	if err != nil {
+		return err
+	}
+	return nil
 }

@@ -1,38 +1,41 @@
 //
-// shell.go
+// main.go
 //
 // Copyright (c) 2018-2021 Markku Rossi
 //
 // All rights reserved.
 //
 
-package shell
+package main
 
 import (
 	"flag"
 	"fmt"
 	"io"
+	"io/ioutil"
+	"log"
 	"os"
 	"regexp"
 	"sort"
 	"strings"
-	"syscall/js"
 
-	"github.com/markkurossi/backup/lib/tree"
-	"github.com/markkurossi/blackbox-os/kernel/control"
-	"github.com/markkurossi/blackbox-os/kernel/kmsg"
-	"github.com/markkurossi/blackbox-os/kernel/process"
 	"github.com/markkurossi/blackbox-os/lib/bbos"
 	"github.com/markkurossi/blackbox-os/lib/file"
 	"github.com/markkurossi/blackbox-os/lib/vt100"
 )
 
+var shellPrompt = "bbos \\W $ "
+
 type Builtin struct {
 	Name string
-	Cmd  func(p *process.Process, args []string)
+	Cmd  func(args []string)
 }
 
-var builtin []Builtin
+var (
+	builtin  []Builtin
+	builtins map[string]Builtin
+	running  = true
+)
 
 type CommandLine []string
 
@@ -59,8 +62,8 @@ func CommandEscape(command string) string {
 	return reCommandEscape.ReplaceAllString(command, "\\${1}")
 }
 
-func cmd_help(p *process.Process, args []string) {
-	fmt.Fprintf(p.Stdout, "Available commands are:\n")
+func cmd_help(args []string) {
+	fmt.Fprintf(os.Stdout, "Available commands are:\n")
 
 	names := make([]string, 0, len(builtin))
 	for _, cmd := range builtin {
@@ -69,26 +72,26 @@ func cmd_help(p *process.Process, args []string) {
 	sort.Strings(names)
 
 	for _, name := range names {
-		fmt.Fprintf(p.Stdout, "  %s\n", name)
+		fmt.Fprintf(os.Stdout, "  %s\n", name)
 	}
 }
 
 func init() {
 	builtin = append(builtin, []Builtin{
+		// Builtin{
+		// 	Name: "alert",
+		// 	Cmd: func(p *process.Process, args []string) {
+		// 		if len(args) < 2 {
+		// 			fmt.Fprintf(p.Stdout, "Usage: alert msg\n")
+		// 			return
+		// 		}
+		// 		js.Global().Get("alert").Invoke(strings.Join(args[1:], " "))
+		// 	},
+		// },
 		Builtin{
-			Name: "alert",
-			Cmd: func(p *process.Process, args []string) {
-				if len(args) < 2 {
-					fmt.Fprintf(p.Stdout, "Usage: alert msg\n")
-					return
-				}
-				js.Global().Get("alert").Invoke(strings.Join(args[1:], " "))
-			},
-		},
-		Builtin{
-			Name: "halt",
-			Cmd: func(p *process.Process, args []string) {
-				control.Halt()
+			Name: "exit",
+			Cmd: func(args []string) {
+				running = false
 			},
 		},
 		Builtin{
@@ -115,47 +118,67 @@ func readLine(in io.Reader) string {
 	return strings.TrimSpace(line)
 }
 
-func Shell(p *process.Process) error {
-	rl := vt100.NewReadline(p.TTY, kmsg.Writer)
-	rl.Tab = func(line string) (string, []string) {
-		return tabCompletion(p, line)
+func main() {
+	builtins = make(map[string]Builtin)
+	for _, bi := range builtin {
+		builtins[bi.Name] = bi
 	}
 
-	for control.KernelPower != 0 {
-		line, err := rl.Read(prompt(p))
-		fmt.Fprintf(p.Stdout, "\n")
+	rl := vt100.NewReadline(os.Stdin, os.Stdout, os.Stderr)
+	rl.Tab = func(line string) (string, []string) {
+		return tabCompletion(line)
+	}
+
+	for running {
+		line, err := rl.Read(prompt())
+		fmt.Fprintf(os.Stdout, "\n")
 		if err != nil {
-			return err
+			log.Fatal(err)
 		}
 		args := split(line)
 		if len(args) == 0 || len(args[0]) == 0 {
 			continue
 		}
 
-		var found bool
-
-		for _, cmd := range builtin {
-			if args[0] == cmd.Name {
-				found = true
-				os.Args = args
-				flag.CommandLine = flag.NewFlagSet(args[0],
-					flag.ContinueOnError)
-				flag.CommandLine.SetOutput(p.Stdout)
-				cmd.Cmd(p, args)
-				break
-			}
+		err = runCommand(args)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "%s: %s\n", args[0], err)
 		}
-		if !found {
-			fmt.Fprintf(p.Stderr, "Unknown command '%s'\n", args[0])
+	}
+}
+
+func runCommand(args []string) error {
+	bi, ok := builtins[args[0]]
+	if ok {
+		os.Args = args
+		flag.CommandLine = flag.NewFlagSet(args[0], flag.ContinueOnError)
+		flag.CommandLine.SetOutput(os.Stdout)
+		bi.Cmd(args)
+	} else {
+		// Run as process.
+		pid, err := bbos.Spawn(args, []int{
+			int(os.Stdin.Fd()),
+			int(os.Stdout.Fd()),
+			int(os.Stderr.Fd()),
+		})
+		if err != nil {
+			return err
+		}
+		code, err := bbos.Wait(pid)
+		if err != nil {
+			return err
+		}
+		if code != 0 {
+			fmt.Printf("%d: Exit %d: %s\n", pid, code, args[0])
 		}
 	}
 	return nil
 }
 
-func prompt(p *process.Process) string {
+func prompt() string {
 	var result []rune
 
-	prompt := []rune(control.ShellPrompt)
+	prompt := []rune(shellPrompt)
 
 	for i := 0; i < len(prompt); i++ {
 		switch prompt[i] {
@@ -166,7 +189,10 @@ func prompt(p *process.Process) string {
 				case 'W':
 					dir := "{nodir}"
 
-					wd, _, err := p.WD()
+					wd, err := os.Getwd()
+					if err != nil {
+						fmt.Fprintf(os.Stderr, "Getwd: %s\n", err)
+					}
 					if err == nil {
 						parts := file.PathSplit(wd)
 						if len(parts) > 0 {
@@ -193,7 +219,7 @@ func prompt(p *process.Process) string {
 	return string(result)
 }
 
-func tabCompletion(p *process.Process, line string) (string, []string) {
+func tabCompletion(line string) (string, []string) {
 	parts := split(line)
 
 	if len(parts) == 0 {
@@ -204,51 +230,51 @@ func tabCompletion(p *process.Process, line string) (string, []string) {
 		return line, nil
 	}
 
-	if last[0] == '@' {
-		return tabSnapshotCompletion(p, line, parts, last)
-	}
-
-	return tabFileCompletion(p, line, parts, last)
+	// 	if last[0] == '@' {
+	// 		return tabSnapshotCompletion(p, line, parts, last)
+	// 	}
+	//
+	return tabFileCompletion(line, parts, last)
 }
 
-func tabSnapshotCompletion(p *process.Process, line string, parts CommandLine,
-	last string) (string, []string) {
+// func tabSnapshotCompletion(p *process.Process, line string, parts CommandLine,
+// 	last string) (string, []string) {
+//
+// 	root := p.FS.Zone().HeadID
+// 	var result []string
+//
+// 	for !root.Undefined() {
+// 		element, err := tree.DeserializeID(root, p.FS.Zone())
+// 		if err != nil {
+// 			return line, nil
+// 		}
+// 		el, ok := element.(*tree.Snapshot)
+// 		if !ok {
+// 			return line, nil
+// 		}
+// 		id := fmt.Sprintf("@%s", root)
+// 		if strings.HasPrefix(id, last) {
+// 			result = append(result, id)
+// 		}
+// 		root = el.Parent
+// 	}
+//
+// 	switch len(result) {
+// 	case 0:
+// 		return line, nil
+// 	case 1:
+// 		parts[len(parts)-1] = result[0]
+// 		return parts.String(), nil
+// 	default:
+// 		parts[len(parts)-1] = commonPrefix(result)
+// 		return parts.String(), result
+// 	}
+// }
 
-	root := p.FS.Zone.HeadID
-	var result []string
+func tabFileCompletion(line string, parts CommandLine, last string) (
+	string, []string) {
 
-	for !root.Undefined() {
-		element, err := tree.DeserializeID(root, p.FS.Zone)
-		if err != nil {
-			return line, nil
-		}
-		el, ok := element.(*tree.Snapshot)
-		if !ok {
-			return line, nil
-		}
-		id := fmt.Sprintf("@%s", root)
-		if strings.HasPrefix(id, last) {
-			result = append(result, id)
-		}
-		root = el.Parent
-	}
-
-	switch len(result) {
-	case 0:
-		return line, nil
-	case 1:
-		parts[len(parts)-1] = result[0]
-		return parts.String(), nil
-	default:
-		parts[len(parts)-1] = commonPrefix(result)
-		return parts.String(), result
-	}
-}
-
-func tabFileCompletion(p *process.Process, line string, parts CommandLine,
-	last string) (string, []string) {
-
-	info, err := bbos.Stat(p, last)
+	info, err := os.Stat(last)
 	if err == nil {
 		// An existing file.
 		if info.IsDir() {
@@ -256,7 +282,7 @@ func tabFileCompletion(p *process.Process, line string, parts CommandLine,
 				parts[len(parts)-1] = fmt.Sprintf("%s/", last)
 				return parts.String(), nil
 			}
-			files, err := bbos.ReadDir(p, last)
+			files, err := ioutil.ReadDir(last)
 			if err != nil {
 				return line, nil
 			}
@@ -285,16 +311,21 @@ func tabFileCompletion(p *process.Process, line string, parts CommandLine,
 
 	// Check if `last' is a file name prefix.
 	path := file.PathSplit(last)
-	if len(path) > 0 {
+	var dir string
+	if len(path) > 1 {
 		last = path[len(path)-1]
 		path = path[:len(path)-1]
+		dir = path.String()
+	} else {
+		path = []string{}
+		dir = "."
 	}
-	info, err = bbos.Stat(p, path.String())
+	info, err = os.Stat(dir)
 	if err != nil {
 		return line, nil
 	}
 	if info.IsDir() {
-		files, err := bbos.ReadDir(p, path.String())
+		files, err := ioutil.ReadDir(dir)
 		if err != nil {
 			return line, nil
 		}
