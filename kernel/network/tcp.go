@@ -1,7 +1,7 @@
 //
 // tcp.go
 //
-// Copyright (c) 2018-2019 Markku Rossi
+// Copyright (c) 2018-2021 Markku Rossi
 //
 // All rights reserved.
 //
@@ -173,6 +173,8 @@ func NewWebSocket(url string) *WebSocket {
 			bytes[i] = byte(v)
 		}
 
+		// XXX this is wrong, or we must have a go-routine consuming
+		// these at the Go side.
 		ws.C <- Message{
 			Type: Data,
 			Data: bytes,

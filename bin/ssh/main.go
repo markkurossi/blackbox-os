@@ -15,8 +15,7 @@ import (
 	"regexp"
 	"time"
 
-	"github.com/markkurossi/blackbox-os/kernel/control"
-	"github.com/markkurossi/blackbox-os/kernel/network"
+	"github.com/markkurossi/blackbox-os/lib/bbos"
 	"github.com/markkurossi/blackbox-os/lib/vt100"
 	"golang.org/x/crypto/ssh"
 )
@@ -29,14 +28,14 @@ func main() {
 
 	args := flag.Args()
 
-	if len(args) < 2 {
+	if len(args) < 1 {
 		fmt.Printf("Usage: ssh [user@]host[:port]\n")
 		return
 	}
 
-	matches := reTarget.FindStringSubmatch(args[1])
+	matches := reTarget.FindStringSubmatch(args[0])
 	if matches == nil {
-		fmt.Fprintf(os.Stderr, "Invalid target '%s'\n", args[1])
+		fmt.Fprintf(os.Stderr, "Invalid target '%s'\n", args[0])
 		return
 	}
 
@@ -62,7 +61,7 @@ func main() {
 func sshConnection(user, addr string) error {
 	fmt.Printf("Connecting to %s@%s...\n", user, addr)
 
-	conn, err := network.DialTimeout(control.WSProxy, addr, 5*time.Second)
+	conn, err := bbos.DialTimeout("tcp", addr, 5*time.Second)
 	if err != nil {
 		return err
 	}

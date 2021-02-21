@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"sync"
 	"syscall/js"
+	"time"
 
 	"github.com/markkurossi/backup/lib/crypto/zone"
 	"github.com/markkurossi/backup/lib/tree"
@@ -21,6 +22,7 @@ import (
 	"github.com/markkurossi/blackbox-os/kernel/fs"
 	"github.com/markkurossi/blackbox-os/kernel/iface"
 	"github.com/markkurossi/blackbox-os/kernel/kmsg"
+	"github.com/markkurossi/blackbox-os/kernel/network"
 	"github.com/markkurossi/blackbox-os/kernel/tty"
 )
 
@@ -94,9 +96,10 @@ func (p *Process) Wait() int {
 	return p.exitCode
 }
 
-func (p *Process) NextFD() int {
+func (p *Process) NewFD(impl iface.FD) int {
 	fd := p.nextFD
 	p.nextFD++
+	p.FDs[fd] = impl
 	return fd
 }
 
@@ -125,7 +128,8 @@ func (p *Process) Run(cmd string, args []string) error {
 		return nil
 	})
 
-	resp, err := http.Get(fmt.Sprintf("%s/bin/%s.wasm", control.BaseURL, cmd))
+	resp, err := http.Get(fmt.Sprintf("%s/bin/%s.wasm?__t=%d",
+		control.BaseURL, cmd, time.Now().Unix()))
 	if err != nil {
 		return fmt.Errorf("process: load %v: %w", cmd, err)
 	}
@@ -179,8 +183,29 @@ func (p *Process) syscallHandler(c chan error, id int, worker,
 			kmsg.Printf("syscall: open: %s", err)
 			return errno.EINVAL
 		}
-		fd := p.NextFD()
-		p.FDs[fd] = iface.NewFD(f.Reader())
+		fd := p.NewFD(iface.NewFD(f.Reader()))
+		syscallResult.Invoke(worker, id, nil, fd)
+
+	case "dial":
+		_, err := getString(event, "network")
+		if err != nil {
+			return err
+		}
+		address, err := getString(event, "address")
+		if err != nil {
+			return err
+		}
+		timeout, err := getInt(event, "timeout")
+		if err != nil {
+			return err
+		}
+		conn, err := network.DialTimeout(control.WSProxy, address,
+			time.Duration(timeout))
+		if err != nil {
+			// XXX check errno
+			return errno.EINVAL
+		}
+		fd := p.NewFD(iface.NewFD(conn))
 		syscallResult.Invoke(worker, id, nil, fd)
 
 	case "write":
