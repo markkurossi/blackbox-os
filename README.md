@@ -31,6 +31,6 @@ Open Black Box terminal at http://localhost:8100/
 
 ## TODO
 
- - [ ] Kernel in main frame, all other processes at Web Workers
+ - [X] Kernel in main frame, all other processes at Web Workers
  - [ ] CharDisplay interface
  - [ ] WebAuthn
