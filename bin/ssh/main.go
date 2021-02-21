@@ -69,8 +69,8 @@ func sshConnection(user, addr string) error {
 
 	var authMethods = []ssh.AuthMethod{
 		ssh.PasswordCallback(func() (secret string, err error) {
-			fmt.Printf("%s@%s's password: ", user, addr)
-			return vt100.ReadPassword()
+			return vt100.ReadPassword(
+				fmt.Sprintf("%s@%s's password: ", user, addr))
 		}),
 	}
 

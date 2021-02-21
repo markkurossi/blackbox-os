@@ -19,6 +19,7 @@ type state func(rl *Readline, b byte, prompt string) bool
 
 type Readline struct {
 	Tab    TabCompletion
+	Masked bool
 	stdin  io.Reader
 	stdout io.Writer
 	stderr io.Writer
@@ -70,6 +71,16 @@ func (rl *Readline) input(b byte, prompt string) bool {
 	return rl.state(rl, b, prompt)
 }
 
+func (rl *Readline) output(b []byte) {
+	if rl.Masked {
+		for i := 0; i < len(b); i++ {
+			rl.stdout.Write([]byte{'*'})
+		}
+	} else {
+		rl.stdout.Write(b)
+	}
+}
+
 func rlStart(rl *Readline, b byte, prompt string) bool {
 	switch b {
 	case 0x1b: // ESC
@@ -115,14 +126,14 @@ func rlStart(rl *Readline, b byte, prompt string) bool {
 			rl.tail = copy(rl.buf, l)
 			rl.cursor = rl.tail
 
-			rl.stdout.Write(rl.buf[:rl.tail])
+			rl.output(rl.buf[:rl.tail])
 
 			// Print completions.
 			if len(completions) > 0 {
 				fmt.Fprintf(rl.stdout, "\n")
 				Tabulate(completions, rl.stdout)
 				fmt.Fprintf(rl.stdout, "%s", prompt)
-				rl.stdout.Write(rl.buf[:rl.tail])
+				rl.output(rl.buf[:rl.tail])
 			}
 		}
 
@@ -134,7 +145,7 @@ func rlStart(rl *Readline, b byte, prompt string) bool {
 		EraseScreen(rl.stdout)
 		MoveTo(rl.stdout, 0, 0)
 		fmt.Fprintf(rl.stdout, "%s", prompt)
-		rl.stdout.Write(rl.buf[:rl.tail])
+		rl.output(rl.buf[:rl.tail])
 
 	case 0x7f: // Delete
 		if rl.cursor == 0 {
@@ -156,7 +167,7 @@ func rlStart(rl *Readline, b byte, prompt string) bool {
 			rl.insert(b)
 
 			// Print line.
-			rl.stdout.Write(rl.buf[rl.cursor-1 : rl.tail])
+			rl.output(rl.buf[rl.cursor-1 : rl.tail])
 
 			// Move cursor back to its position.
 			for i := rl.tail; i > rl.cursor; i-- {

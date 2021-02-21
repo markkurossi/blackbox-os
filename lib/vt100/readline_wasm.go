@@ -21,7 +21,7 @@ func MakeRaw(stdin io.Reader) (uint, error) {
 		if err != nil {
 			return 0, err
 		}
-		err = bbos.SetFlags(int(fd.Fd()), flags & ^(1|3))
+		err = bbos.SetFlags(int(fd.Fd()), flags & ^(1|2))
 		if err != nil {
 			return 0, err
 		}

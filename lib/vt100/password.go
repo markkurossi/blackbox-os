@@ -8,10 +8,15 @@
 
 package vt100
 
-func ReadPassword() (string, error) {
-	// flags := p.TTY.Flags()
-	// p.TTY.SetFlags(flags & ^vt100.ECHO)
-	// defer p.TTY.SetFlags(flags)
-	// passwd := readLine(os.Stdin)
-	return "password", nil
+import (
+	"fmt"
+	"os"
+)
+
+func ReadPassword(prompt string) (string, error) {
+	rl := NewReadline(os.Stdin, os.Stdout, os.Stderr)
+	rl.Masked = true
+	password, err := rl.Read(prompt)
+	fmt.Fprintln(os.Stdout)
+	return password, err
 }

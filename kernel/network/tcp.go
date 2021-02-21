@@ -15,6 +15,7 @@ import (
 	"io"
 	"log"
 	"net"
+	"sync"
 	"syscall/js"
 	"time"
 
@@ -31,11 +32,7 @@ var (
 func DialTimeout(proxy, addr string, timeout time.Duration) (net.Conn, error) {
 	url := fmt.Sprintf("ws://%s/proxy", proxy)
 
-	conn := &WSConn{
-		ws:      NewWebSocket(url),
-		network: "tcp",
-		addr:    addr,
-	}
+	conn := NewWSConn(NewWebSocket(url), "tcp", addr)
 
 	// Wait for WebSocket to connect.
 	for msg := range conn.ws.C {
@@ -70,6 +67,7 @@ func DialTimeout(proxy, addr string, timeout time.Duration) (net.Conn, error) {
 				conn.Close()
 				return nil, errors.New(status.Error)
 			}
+			go conn.messageLoop()
 			return conn, nil
 		}
 	}
@@ -173,8 +171,6 @@ func NewWebSocket(url string) *WebSocket {
 			bytes[i] = byte(v)
 		}
 
-		// XXX this is wrong, or we must have a go-routine consuming
-		// these at the Go side.
 		ws.C <- Message{
 			Type: Data,
 			Data: bytes,
@@ -202,37 +198,70 @@ func NewWebSocket(url string) *WebSocket {
 }
 
 type WSConn struct {
+	mutex   sync.Mutex
+	cond    *sync.Cond
 	ws      *WebSocket
 	network string
 	addr    string
 	data    []byte
+	err     error
+}
+
+func NewWSConn(ws *WebSocket, network, addr string) *WSConn {
+	conn := &WSConn{
+		ws:      ws,
+		network: network,
+		addr:    addr,
+	}
+	conn.cond = sync.NewCond(&conn.mutex)
+	return conn
+}
+
+func (c *WSConn) messageLoop() {
+	for msg := range c.ws.C {
+		c.cond.L.Lock()
+
+		switch msg.Type {
+		case Data:
+			// XXX need a flow control here, if buffer too big, close
+			// connection.
+			c.data = append(c.data, msg.Data...)
+
+		case Error:
+			c.err = msg.Error
+
+		case Open:
+			c.err = fmt.Errorf("unexpected WebSocket open message")
+
+		case Close:
+			c.err = io.EOF
+		}
+		c.cond.Signal()
+		c.cond.L.Unlock()
+		if c.err != nil {
+			break
+		}
+	}
 }
 
 func (c *WSConn) Read(b []byte) (n int, err error) {
-	for len(c.data) == 0 {
-	messages:
-		for msg := range c.ws.C {
-			switch msg.Type {
-			case Data:
-				c.onData(msg.Data)
-				break messages
-
-			case Error:
-				return 0, msg.Error
-
-			case Open:
-				return 0, fmt.Errorf("Unexpected WebSocket open message")
-
-			case Close:
-				return 0, io.EOF
-			}
-		}
+	c.cond.L.Lock()
+	for len(c.data) == 0 && c.err == nil {
+		// XXX need a flow control, if buffer empty, request data with
+		// ws.Read().
+		c.cond.Wait()
 	}
 
 	n = copy(b, c.data)
 	c.data = c.data[n:]
 
-	return
+	c.cond.L.Unlock()
+
+	if n > 0 {
+		return n, nil
+	}
+
+	return n, c.err
 }
 
 func (c *WSConn) Write(b []byte) (n int, err error) {
