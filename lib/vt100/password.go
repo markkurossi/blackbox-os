@@ -15,7 +15,7 @@ import (
 
 func ReadPassword(prompt string) (string, error) {
 	rl := NewReadline(os.Stdin, os.Stdout, os.Stderr)
-	rl.Masked = true
+	rl.Mask = MaskAsterisk
 	password, err := rl.Read(prompt)
 	fmt.Fprintln(os.Stdout)
 	return password, err

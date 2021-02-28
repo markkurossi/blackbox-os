@@ -77,6 +77,7 @@ type Console struct {
 	encodingBuf []byte
 	lastRune    rune
 	emulator    *vt100.Emulator
+	display     *vt100.Display
 }
 
 // Canonical provides canonical input mode with Emacs-like line
@@ -237,34 +238,33 @@ func (c *Console) SetFlags(flags TTYFlags) {
 	c.flags = flags
 }
 
-func (c *Console) Cursor() (int, int) {
-	return c.emulator.Row, c.emulator.Col
+func (c *Console) Cursor() vt100.Point {
+	return c.emulator.Cursor
 }
 
-func (c *Console) Size() (int, int, int, int) {
-	return c.emulator.Width, c.emulator.Height,
-		c.emulator.Width, c.emulator.Height
+func (c *Console) Size() (vt100.Point, vt100.Point) {
+	return c.emulator.Size, c.emulator.Size
 }
 
 func (c *Console) String() string {
-	return fmt.Sprintf("Console (%dx%d)", c.emulator.Width, c.emulator.Height)
+	return fmt.Sprintf("Console (%s)", c.emulator.Size)
 }
 
-func (c *Console) Resize() {
-	c.emulator.Resize(display.Get("width").Int(), display.Get("height").Int())
+func (c *Console) DisplaySize() (int, int) {
+	return display.Get("width").Int(), display.Get("height").Int()
 }
 
 func (c *Console) Flush() error {
 	display.Call("clear")
 
-	for i := 0; i < c.emulator.Height; i++ {
+	for i := 0; i < c.emulator.Size.Y; i++ {
 		line := lineNew.New()
 
-		for j := 0; j < c.emulator.Width; j++ {
-			ch := c.emulator.Lines[i][j]
+		for j := 0; j < c.emulator.Size.X; j++ {
+			ch := c.display.Lines[i][j]
 
 			var flags = 0
-			if j == c.emulator.Col && i == c.emulator.Row {
+			if j == c.emulator.Cursor.X && i == c.emulator.Cursor.Y {
 				flags = 1
 			}
 
@@ -392,7 +392,7 @@ func (c *Console) onKey(kt KeyType, code rune) {
 
 	if (c.flags & ICANON) != 0 {
 		if c.qCanon.input(c, kt, code) {
-			c.emulator.MoveTo(c.emulator.Row+1, 0)
+			c.emulator.MoveTo(c.emulator.Cursor.Y+1, 0)
 			c.cond.Broadcast()
 		}
 	} else {
@@ -459,9 +459,10 @@ func NewConsole() TTY {
 		qCanon: NewCanonical(),
 		cond:   sync.NewCond(new(sync.Mutex)),
 	}
+	c.display = vt100.NewDisplay(c.DisplaySize())
 	c.emulator = vt100.NewEmulator(&inputWriter{
 		c: c,
-	}, kmsg.Writer)
+	}, kmsg.Writer, c.display)
 
 	onKeyboard := js.FuncOf(func(this js.Value, args []js.Value) interface{} {
 		if len(args) < 1 {
@@ -482,8 +483,6 @@ func NewConsole() TTY {
 	})
 
 	initKeyboard.Invoke(onKeyboard)
-
-	c.Resize()
 
 	return c
 }

@@ -8,6 +8,10 @@
 
 package tty
 
+import (
+	"github.com/markkurossi/blackbox-os/lib/vt100"
+)
+
 type TTYFlags uint
 
 const (
@@ -19,8 +23,8 @@ type TTY interface {
 	Flags() TTYFlags
 	SetFlags(flags TTYFlags)
 	Read(p []byte) (n int, err error)
-	Cursor() (row, col int)
-	Size() (width, height, widthPx, heightPx int)
+	Cursor() vt100.Point
+	Size() (ch, px vt100.Point)
 	Write(p []byte) (n int, err error)
 	Flush() error
 }

@@ -17,9 +17,16 @@ import (
 type TabCompletion func(line string) (expanded string, completions []string)
 type state func(rl *Readline, b byte, prompt string) bool
 
+type Mask int
+
+const (
+	MaskNone Mask = iota
+	MaskAsterisk
+)
+
 type Readline struct {
 	Tab    TabCompletion
-	Masked bool
+	Mask   Mask
 	stdin  io.Reader
 	stdout io.Writer
 	stderr io.Writer
@@ -72,12 +79,14 @@ func (rl *Readline) input(b byte, prompt string) bool {
 }
 
 func (rl *Readline) output(b []byte) {
-	if rl.Masked {
+	switch rl.Mask {
+	case MaskNone:
+		rl.stdout.Write(b)
+
+	case MaskAsterisk:
 		for i := 0; i < len(b); i++ {
 			rl.stdout.Write([]byte{'*'})
 		}
-	} else {
-		rl.stdout.Write(b)
 	}
 }
 

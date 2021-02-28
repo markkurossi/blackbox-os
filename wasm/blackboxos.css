@@ -11,7 +11,7 @@ body {
     margin: 0px;
     padding: 0px 10px;
     background: white;
-    font-family: "Courier New";
+    font-family: menlo, consolas, monospace;
     overflow: hidden;
     font-size: 10pt;
     white-space: pre;
