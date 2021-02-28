@@ -20,6 +20,14 @@ func (p Point) String() string {
 	return fmt.Sprintf("%d,%d", p.X, p.Y)
 }
 
+func (p Point) Equal(o Point) bool {
+	return p.X == o.X && p.Y == o.Y
+}
+
+var (
+	ZeroPoint = Point{}
+)
+
 type RGBA uint32
 
 const (
@@ -36,6 +44,9 @@ type Char struct {
 
 type CharDisplay interface {
 	Size() Point
+	Clear(from, to Point)
+	// DECALN fills the screen with 'E'.
+	DECALN(size Point)
 	Set(p Point, char Char)
 	Get(p Point) Char
 	ScrollUp(count int)
@@ -114,35 +125,48 @@ func (e *Emulator) ClearLine(line, from, to int) {
 	if line < 0 || line >= e.Size.Y {
 		return
 	}
-	if to > e.Size.X {
-		to = e.Size.X
+	if to >= e.Size.X {
+		to = e.Size.X - 1
 	}
-	p := Point{
+	e.display.Clear(Point{
 		X: from,
 		Y: line,
-	}
-	for ; p.X < to; p.X++ {
-		e.display.Set(p, e.blank)
-	}
+	}, Point{
+		X: to,
+		Y: line,
+	})
 }
 
 func (e *Emulator) Clear(start, end bool) {
-	for i := 0; i < e.Size.Y; i++ {
-		if i < e.Cursor.Y {
-			if start {
-				e.ClearLine(i, 0, e.Size.X)
-			}
-		} else if i == e.Cursor.Y {
-			if start && end {
-				e.ClearLine(i, 0, e.Size.X)
-			} else if start {
-				e.ClearLine(i, 0, e.Cursor.X+1)
-			} else if end {
-				e.ClearLine(i, e.Cursor.X, e.Size.X)
-			}
-		} else if end {
-			e.ClearLine(i, 0, e.Size.X)
+	if start {
+		if e.Cursor.Y > 0 {
+			e.display.Clear(ZeroPoint, Point{
+				X: e.Size.X - 1,
+				Y: e.Cursor.Y - 1,
+			})
 		}
+		e.display.Clear(Point{
+			X: 0,
+			Y: e.Cursor.Y,
+		}, Point{
+			X: e.Cursor.X,
+			Y: e.Cursor.Y,
+		})
+	}
+	if end {
+		e.display.Clear(Point{
+			X: e.Cursor.X,
+			Y: e.Cursor.Y,
+		}, Point{
+			X: e.Size.X - 1,
+			Y: e.Cursor.Y,
+		})
+		e.display.Clear(Point{
+			Y: e.Cursor.Y + 1,
+		}, Point{
+			X: e.Size.X - 1,
+			Y: e.Size.Y - 1,
+		})
 	}
 }
 

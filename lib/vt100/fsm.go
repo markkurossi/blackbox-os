@@ -81,14 +81,7 @@ func actPrivateFunction(e *Emulator, state *State, ch int) {
 	case '8':
 		switch string(state.params) {
 		case "#": // DECALN - Alignment display, fill screen with "E"
-			ch := e.blank
-			ch.Code = 'E'
-			var p Point
-			for p.Y = 0; p.Y < e.Size.Y; p.Y++ {
-				for p.X = 0; p.X < e.Size.X; p.X++ {
-					e.display.Set(p, ch)
-				}
-			}
+			e.display.DECALN(e.Size)
 
 		default:
 			e.debug("Unsupported actPrivateFunction: %s%c",
@@ -155,7 +148,7 @@ func actCSI(e *Emulator, state *State, ch int) {
 		case 0:
 			e.ClearLine(e.Cursor.Y, e.Cursor.X, e.Size.X)
 		case 1:
-			e.ClearLine(e.Cursor.Y, 0, e.Cursor.X+1)
+			e.ClearLine(e.Cursor.Y, 0, e.Cursor.X)
 		case 2:
 			e.ClearLine(e.Cursor.Y, 0, e.Size.X)
 		}
@@ -203,9 +196,10 @@ func actCSI(e *Emulator, state *State, ch int) {
 
 		case "?":
 			switch mode {
-			case 3:
+			case 3: // DECCOLM - COLumn mode, 132 characters per line
 				e.Clear(true, true)
 				e.Resize(132, e.Size.Y)
+				e.MoveTo(0, 0)
 
 			case 1034: // Interpret "meta" key, sets eight bit (eightBitInput)
 

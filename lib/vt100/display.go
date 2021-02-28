@@ -57,6 +57,25 @@ func (d *Display) Size() Point {
 	return d.size
 }
 
+func (d *Display) Clear(from, to Point) {
+	for y := from.Y; y <= to.Y; y++ {
+		for x := from.X; x <= to.X; x++ {
+			d.Lines[y][x] = d.Blank
+		}
+	}
+}
+
+func (d *Display) DECALN(size Point) {
+	ch := d.Blank
+	ch.Code = 'E'
+
+	for y := 0; y < size.Y; y++ {
+		for x := 0; x < size.X; x++ {
+			d.Lines[y][x] = ch
+		}
+	}
+}
+
 func (d *Display) Set(p Point, char Char) {
 	d.Lines[p.Y][p.X] = char
 }
