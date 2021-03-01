@@ -11,6 +11,7 @@ import (
 	"io"
 )
 
+// Point defines a 2D point.
 type Point struct {
 	X int
 	Y int
@@ -20,49 +21,69 @@ func (p Point) String() string {
 	return fmt.Sprintf("%d,%d", p.X, p.Y)
 }
 
+// Equal tests if the argument point is equal to this point.
 func (p Point) Equal(o Point) bool {
 	return p.X == o.X && p.Y == o.Y
 }
 
 var (
-	ZeroPoint = Point{}
+	zeroPoint = Point{}
 )
 
+// RGBA defines display color value.s
 type RGBA uint32
 
+// Emulator color codes.
 const (
 	White = RGBA(0xffffffff)
 	Black = RGBA(0x000000ff)
+)
+
+const (
 	debug = false
 )
 
+// Char defines the column character and properties in emulator
+// display.
 type Char struct {
 	Code       rune
 	Foreground RGBA
 	Background RGBA
 }
 
+// CharDisplay implements terminal display.
 type CharDisplay interface {
+	// Size returns the display size.
 	Size() Point
+	// Clear clears the display region (inclusively).
 	Clear(from, to Point)
 	// DECALN fills the screen with 'E'.
 	DECALN(size Point)
+	// Set sets the character at the specified point.
 	Set(p Point, char Char)
-	Get(p Point) Char
+	// InsertChars insert count number of characters to the specified
+	// point.
+	InsertChars(size, p Point, count int)
+	// DeleteChars delets count number of characters from the
+	// specified point.
+	DeleteChars(size, p Point, count int)
+	// ScrollUp scrolls the screen up count lines.
 	ScrollUp(count int)
 }
 
+// Emulator implements terminal emulator.
 type Emulator struct {
 	display  CharDisplay
 	Size     Point
 	Cursor   Point
 	blank    Char
 	overflow bool
-	state    *State
+	state    *state
 	stdout   io.Writer
 	stderr   io.Writer
 }
 
+// NewEmulator creates a new terminal emulator.
 func NewEmulator(stdout, stderr io.Writer, display CharDisplay) *Emulator {
 	e := &Emulator{
 		display: display,
@@ -74,6 +95,7 @@ func NewEmulator(stdout, stderr io.Writer, display CharDisplay) *Emulator {
 	return e
 }
 
+// Reset resets the emulator to initial state.
 func (e *Emulator) Reset() {
 	e.Size = e.display.Size()
 	e.blank = Char{
@@ -81,9 +103,10 @@ func (e *Emulator) Reset() {
 		Foreground: Black,
 		Background: White,
 	}
-	e.Clear(true, true)
+	e.clear(true, true)
 }
 
+// Resize sets emulator display area.
 func (e *Emulator) Resize(width, height int) {
 	e.Size = e.display.Size()
 	if e.Size.X > width {
@@ -94,9 +117,9 @@ func (e *Emulator) Resize(width, height int) {
 	}
 }
 
-func (e *Emulator) setState(state *State) {
+func (e *Emulator) setState(state *state) {
 	e.state = state
-	e.state.Reset()
+	e.state.reset()
 }
 
 func (e *Emulator) output(format string, a ...interface{}) {
@@ -121,7 +144,7 @@ func (e *Emulator) setWindowTitle(name string) {
 	e.debug("Window Title: %s", name)
 }
 
-func (e *Emulator) ClearLine(line, from, to int) {
+func (e *Emulator) clearLine(line, from, to int) {
 	if line < 0 || line >= e.Size.Y {
 		return
 	}
@@ -137,10 +160,10 @@ func (e *Emulator) ClearLine(line, from, to int) {
 	})
 }
 
-func (e *Emulator) Clear(start, end bool) {
+func (e *Emulator) clear(start, end bool) {
 	if start {
 		if e.Cursor.Y > 0 {
-			e.display.Clear(ZeroPoint, Point{
+			e.display.Clear(zeroPoint, Point{
 				X: e.Size.X - 1,
 				Y: e.Cursor.Y - 1,
 			})
@@ -170,7 +193,7 @@ func (e *Emulator) Clear(start, end bool) {
 	}
 }
 
-func (e *Emulator) MoveTo(row, col int) {
+func (e *Emulator) moveTo(row, col int) {
 	if col < 0 {
 		col = 0
 	}
@@ -183,32 +206,32 @@ func (e *Emulator) MoveTo(row, col int) {
 		row = 0
 	}
 	if row >= e.Size.Y {
-		e.ScrollUp(e.Size.Y - row + 1)
+		e.scrollUp(e.Size.Y - row + 1)
 		row = e.Size.Y - 1
 	}
 	e.Cursor.Y = row
 	e.overflow = false
 }
 
-func (e *Emulator) ScrollUp(count int) {
+func (e *Emulator) scrollUp(count int) {
 	if count >= e.Size.Y {
-		e.Clear(true, true)
+		e.clear(true, true)
 		return
 	}
 	e.display.ScrollUp(count)
 
 	for i := 0; i < count; i++ {
-		e.ClearLine(e.Size.Y-1-i, 0, e.Size.X)
+		e.clearLine(e.Size.Y-1-i, 0, e.Size.X)
 	}
 }
 
-func (e *Emulator) InsertChar(code int) {
+func (e *Emulator) insertChar(code int) {
 	if e.overflow {
 		if e.Cursor.Y+1 >= e.Size.Y {
-			e.ScrollUp(1)
-			e.MoveTo(e.Cursor.Y, 0)
+			e.scrollUp(1)
+			e.moveTo(e.Cursor.Y, 0)
 		} else {
-			e.MoveTo(e.Cursor.Y+1, 0)
+			e.moveTo(e.Cursor.Y+1, 0)
 		}
 		e.overflow = true
 	}
@@ -218,11 +241,11 @@ func (e *Emulator) InsertChar(code int) {
 	if e.Cursor.X+1 >= e.Size.X {
 		e.overflow = true
 	} else {
-		e.MoveTo(e.Cursor.Y, e.Cursor.X+1)
+		e.moveTo(e.Cursor.Y, e.Cursor.X+1)
 	}
 }
 
-func (e *Emulator) InsertChars(row, col, count int) {
+func (e *Emulator) insertChars(row, col, count int) {
 	if row < 0 {
 		row = 0
 	} else if row >= e.Size.Y {
@@ -234,46 +257,42 @@ func (e *Emulator) InsertChars(row, col, count int) {
 		return
 	}
 	if col+count >= e.Size.X {
-		e.ClearLine(row, col, e.Size.X)
+		e.clearLine(row, col, e.Size.X)
 		return
 	}
-	p := Point{
+	e.display.InsertChars(e.Size, Point{
 		Y: row,
-	}
-	for p.X = e.Size.X - 1; p.X >= col; p.X-- {
-		if p.X-count >= col {
-			e.display.Set(p, e.display.Get(Point{
-				Y: row,
-				X: p.X - count,
-			}))
-		} else {
-			e.display.Set(p, e.blank)
-		}
-	}
+		X: col,
+	}, count)
 }
 
-func (e *Emulator) DeleteChars(row, col, count int) {
-	p := Point{
+func (e *Emulator) deleteChars(row, col, count int) {
+	if row < 0 {
+		row = 0
+	} else if row >= e.Size.Y {
+		row = e.Size.Y - 1
+	}
+	if col < 0 {
+		col = 0
+	} else if col >= e.Size.X {
+		return
+	}
+	if col+count >= e.Size.X {
+		e.clearLine(row, col, e.Size.X)
+		return
+	}
+	e.display.DeleteChars(e.Size, Point{
 		Y: row,
-	}
-
-	for p.X = col; p.X < e.Size.X; p.X++ {
-		if p.X+count < e.Size.X {
-			e.display.Set(p, e.display.Get(Point{
-				Y: row,
-				X: p.X + count,
-			}))
-		} else {
-			e.display.Set(p, e.blank)
-		}
-	}
+		X: col,
+	}, count)
 }
 
+// Input runs the terminal emulation with the next input code.
 func (e *Emulator) Input(code int) {
 	if debug {
 		e.debug("Emulator.Input: %s<-0x%x (%d) '%c'", e.state, code, code, code)
 	}
-	next := e.state.Input(e, code)
+	next := e.state.input(e, code)
 	if next != nil {
 		if debug {
 			e.debug("Emulator.Input: %s->%s", e.state, next)

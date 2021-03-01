@@ -13,6 +13,7 @@ import (
 	"io"
 )
 
+// Tabulate aligns the input items into 80-column display.
 func Tabulate(items []string, out io.Writer) {
 	var max = 0
 

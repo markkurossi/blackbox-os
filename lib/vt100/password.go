@@ -1,6 +1,4 @@
 //
-// readline.go
-//
 // Copyright (c) 2018-2021 Markku Rossi
 //
 // All rights reserved.
@@ -13,6 +11,7 @@ import (
 	"os"
 )
 
+// ReadPassword reads a password.
 func ReadPassword(prompt string) (string, error) {
 	rl := NewReadline(os.Stdin, os.Stdout, os.Stderr)
 	rl.Mask = MaskAsterisk

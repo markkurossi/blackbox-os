@@ -14,16 +14,19 @@ import (
 	"unicode"
 )
 
+// TabCompletion provides tab completions for the line.
 type TabCompletion func(line string) (expanded string, completions []string)
-type state func(rl *Readline, b byte, prompt string) bool
 
+// Mask defineshow readline outputs are masked.
 type Mask int
 
+// Output mask types.
 const (
 	MaskNone Mask = iota
 	MaskAsterisk
 )
 
+// Readline implements interactive line reader.
 type Readline struct {
 	Tab    TabCompletion
 	Mask   Mask
@@ -31,11 +34,14 @@ type Readline struct {
 	stdout io.Writer
 	stderr io.Writer
 	buf    []byte
-	state  state
+	state  rlState
 	cursor int
 	tail   int
 }
 
+type rlState func(rl *Readline, b byte, prompt string) bool
+
+// NewReadline creates a new readline instance.
 func NewReadline(stdin io.Reader, stdout, stderr io.Writer) *Readline {
 	return &Readline{
 		stdin:  stdin,

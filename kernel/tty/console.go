@@ -392,7 +392,8 @@ func (c *Console) onKey(kt KeyType, code rune) {
 
 	if (c.flags & ICANON) != 0 {
 		if c.qCanon.input(c, kt, code) {
-			c.emulator.MoveTo(c.emulator.Cursor.Y+1, 0)
+			c.emulator.Input('\r')
+			c.emulator.Input('\n')
 			c.cond.Broadcast()
 		}
 	} else {

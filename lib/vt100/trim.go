@@ -17,14 +17,18 @@ var (
 	stderr             = io.Discard
 )
 
+// Stringer implements the CharDisplay interface to create plain-text
+// string versions of the input.
 type Stringer struct {
 	lines [][]rune
 }
 
+// NewStringer creates a new stringer display.
 func NewStringer() *Stringer {
 	return &Stringer{}
 }
 
+// Size implements the CharDisplay.Size function.
 func (d *Stringer) Size() Point {
 	return Point{
 		X: math.MaxInt32,
@@ -32,9 +36,12 @@ func (d *Stringer) Size() Point {
 	}
 }
 
+// Clear implements the CharDisplay.Clear function.
 func (d *Stringer) Clear(from, to Point) {
+	// XXX
 }
 
+// DECALN implements the CharDisplay.DECALN function.
 func (d *Stringer) DECALN(size Point) {
 	if size.X == math.MaxInt32 {
 		// Take the maximum line width.
@@ -65,6 +72,7 @@ func (d *Stringer) DECALN(size Point) {
 	}
 }
 
+// Set implements the CharDisplay.Set function.
 func (d *Stringer) Set(p Point, char Char) {
 	for len(d.lines) <= p.Y {
 		d.lines = append(d.lines, []rune{})
@@ -75,18 +83,19 @@ func (d *Stringer) Set(p Point, char Char) {
 	d.lines[p.Y][p.X] = char.Code
 }
 
-func (d *Stringer) Get(p Point) Char {
-	if p.Y >= len(d.lines) || p.X >= len(d.lines[p.Y]) {
-		return Char{
-			Code: ' ',
-		}
-	}
-	return Char{
-		Code: d.lines[p.Y][p.X],
-	}
+// InsertChars implements the CharDisplay.InsertChars function.
+func (d *Stringer) InsertChars(size, p Point, count int) {
+	// XXX
 }
 
+// DeleteChars implements the CharDisplay.DeleteChars function.
+func (d *Stringer) DeleteChars(size, p Point, count int) {
+	// XXX
+}
+
+// ScrollUp implements the CharDisplay.ScrollUp function.
 func (d *Stringer) ScrollUp(count int) {
+	// XXX
 }
 
 // DisplayWidth computes the character size width of the argument data

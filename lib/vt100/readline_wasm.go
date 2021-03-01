@@ -14,6 +14,7 @@ import (
 	"github.com/markkurossi/blackbox-os/lib/bbos"
 )
 
+// MakeRaw enables raw input and disables echo.
 func MakeRaw(stdin io.Reader) (uint, error) {
 	switch fd := stdin.(type) {
 	case *os.File:
@@ -32,6 +33,7 @@ func MakeRaw(stdin io.Reader) (uint, error) {
 	}
 }
 
+// MakeCooked enables the input mode based on flags.
 func MakeCooked(stdin io.Reader, flags uint) error {
 	switch fd := stdin.(type) {
 	case *os.File:
