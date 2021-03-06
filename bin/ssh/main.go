@@ -7,6 +7,7 @@
 package main
 
 import (
+	"encoding/hex"
 	"flag"
 	"fmt"
 	"io"
@@ -16,12 +17,15 @@ import (
 	"time"
 
 	"github.com/markkurossi/blackbox-os/lib/bbos"
+	"github.com/markkurossi/blackbox-os/lib/bbos/log"
 	"github.com/markkurossi/blackbox-os/lib/vt100"
 	"golang.org/x/crypto/ssh"
 )
 
 var reTarget *regexp.Regexp = regexp.MustCompilePOSIX(
 	"(([^@]+)@)?([^:]+)(:.*)?")
+
+var verbose = flag.Bool("v", false, "verbose output")
 
 func main() {
 	flag.Parse()
@@ -132,7 +136,25 @@ func sshConnection(user, addr string) error {
 	go io.Copy(stdin, os.Stdin)
 	go io.Copy(os.Stderr, stderr)
 
-	io.Copy(os.Stdout, stdout)
+	var stdoutWriter io.Writer
+	if *verbose {
+		stdoutWriter = &logWriter{
+			out: os.Stdout,
+		}
+	} else {
+		stdoutWriter = os.Stdout
+	}
+
+	io.Copy(stdoutWriter, stdout)
 
 	return nil
+}
+
+type logWriter struct {
+	out io.Writer
+}
+
+func (lw *logWriter) Write(p []byte) (n int, err error) {
+	log.Printf("stdout:\n%s", hex.Dump(p))
+	return lw.out.Write(p)
 }
