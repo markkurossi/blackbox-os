@@ -93,8 +93,8 @@ func TestDisplayWidth(t *testing.T) {
 }
 
 var emulTests = []struct {
-	input string
-	lines []string
+	input  string
+	output string
 }{
 	{
 		input: `stdout:
@@ -416,6 +416,32 @@ stdout:
 000010a0  70 6f 73 69 74 69 6f 6e  20 61 72 6f 75 6e 64 20  |position around |
 000010b0  69 74 2e 20 20 20 20 50  75 73 68 20 3c 52 45 54  |it.    Push <RET|
 000010c0  55 52 4e 3e                                       |URN>|
+`,
+		output: `
+********************************************************************************
+*++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++*
+*+                                                                            +*
+*+                                                                            +*
+*+                                                                            +*
+*+                                                                            +*
+*+                                                                            +*
+*+                                                                            +*
+*+        EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE        +*
+*+        E                                                          E        +*
+*+        E The screen should be cleared,  and have an unbroken bor- E        +*
+*+        E der of *'s and +'s around the edge,   and exactly in the E        +*
+*+        E middle  there should be a frame of E's around this  text E        +*
+*+        E with  one (1) free position around it.    Push <RETURN>  E        +*
+*+        E                                                          E        +*
+*+        EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE        +*
+*+                                                                            +*
+*+                                                                            +*
+*+                                                                            +*
+*+                                                                            +*
+*+                                                                            +*
+*+                                                                            +*
+*++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++*
+********************************************************************************
 `,
 	},
 }

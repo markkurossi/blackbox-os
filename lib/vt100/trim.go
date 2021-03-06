@@ -38,7 +38,18 @@ func (d *Stringer) Size() Point {
 
 // Clear implements the CharDisplay.Clear function.
 func (d *Stringer) Clear(from, to Point) {
-	// XXX
+	for y := from.Y; y <= to.Y; y++ {
+		if y >= len(d.lines) {
+			return
+		}
+		if to.X >= len(d.lines[y]) {
+			d.lines[y] = d.lines[y][:from.X]
+		} else {
+			for x := from.X; x <= to.X; x++ {
+				d.lines[y][x] = ' '
+			}
+		}
+	}
 }
 
 // DECALN implements the CharDisplay.DECALN function.
