@@ -14,6 +14,8 @@ import (
 var reLine = regexp.MustCompilePOSIX(`^[[:xdigit:]]{8}(([[:blank:]]+[[:xdigit:]]{2}){1,16}).*$`)
 var reByte = regexp.MustCompilePOSIX(`[[:blank:]]+([[:xdigit:]]{2})`)
 
+// ParseHexDump parses data from the encoding/hex.Dump formatted
+// output.
 func ParseHexDump(data []byte) ([]byte, error) {
 	var result bytes.Buffer
 

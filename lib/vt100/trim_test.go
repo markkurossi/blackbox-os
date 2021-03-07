@@ -8,6 +8,7 @@ package vt100
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 )
 
@@ -444,6 +445,111 @@ stdout:
 ********************************************************************************
 `,
 	},
+	{
+		input: `stdout:
+00000000  1b 5b 3f 33 6c 1b 5b 3f  33 6c 54 65 73 74 20 6f  |.[?3l.[?3lTest o|
+00000010  66 20 61 75 74 6f 77 72  61 70 2c 20 6d 69 78 69  |f autowrap, mixi|
+00000020  6e 67 20 63 6f 6e 74 72  6f 6c 20 61 6e 64 20 70  |ng control and p|
+00000030  72 69 6e 74 20 63 68 61  72 61 63 74 65 72 73 2e  |rint characters.|
+00000040  0d 0d 0a 54 68 65 20 6c  65 66 74 2f 72 69 67 68  |...The left/righ|
+00000050  74 20 6d 61 72 67 69 6e  73 20 73 68 6f 75 6c 64  |t margins should|
+00000060  20 68 61 76 65 20 6c 65  74 74 65 72 73 20 69 6e  | have letters in|
+00000070  20 6f 72 64 65 72 3a 0d  0d 0a 1b 5b 33 3b 32 31  | order:....[3;21|
+00000080  72 1b 5b 3f 36 68 1b 5b  31 39 3b 31 48 41 1b 5b  |r.[?6h.[19;1HA.[|
+00000090  31 39 3b 38 30 48 61 0d  0a 1b 5b 31 38 3b 38 30  |19;80Ha...[18;80|
+000000a0  48 61 42 1b 5b 31 39 3b  38 30 48 42 08 20 62 0d  |HaB.[19;80HB. b.|
+000000b0  0a 1b 5b 31 39 3b 38 30  48 43 08 08 09 09 63 1b  |..[19;80HC....c.|
+000000c0  5b 31 39 3b 32 48 08 43  0d 0a 1b 5b 31 39 3b 38  |[19;2H.C...[19;8|
+000000d0  30 48 0d 0a 1b 5b 31 38  3b 31 48 44 1b 5b 31 38  |0H...[18;1HD.[18|
+000000e0  3b 38 30 48 64 1b 5b 31  39 3b 31 48 45 1b 5b 31  |;80Hd.[19;1HE.[1|
+000000f0  39 3b 38 30 48 65 0d 0a  1b 5b 31 38 3b 38 30 48  |9;80He...[18;80H|
+00000100  65 46 1b 5b 31 39 3b 38  30 48 46 08 20 66 0d 0a  |eF.[19;80HF. f..|
+00000110  1b 5b 31 39 3b 38 30 48  47 08 08 09 09 67 1b 5b  |.[19;80HG....g.[|
+00000120  31 39 3b 32 48 08 47 0d  0a 1b 5b 31 39 3b 38 30  |19;2H.G...[19;80|
+00000130  48 0d 0a 1b 5b 31 38 3b  31 48 48 1b 5b 31 38 3b  |H...[18;1HH.[18;|
+00000140  38 30 48 68 1b 5b 31 39  3b 31 48 49 1b 5b 31 39  |80Hh.[19;1HI.[19|
+00000150  3b 38 30 48 69 0d 0a 1b  5b 31 38 3b 38 30 48 69  |;80Hi...[18;80Hi|
+00000160  4a 1b 5b 31 39 3b 38 30  48 4a 08 20 6a 0d 0a 1b  |J.[19;80HJ. j...|
+00000170  5b 31 39 3b 38 30 48 4b  08 08 09 09 6b 1b 5b 31  |[19;80HK....k.[1|
+00000180  39 3b 32 48 08 4b 0d 0a  1b 5b 31 39 3b 38 30 48  |9;2H.K...[19;80H|
+00000190  0d 0a 1b 5b 31 38 3b 31  48 4c 1b 5b 31 38 3b 38  |...[18;1HL.[18;8|
+000001a0  30 48 6c 1b 5b 31 39 3b  31 48 4d 1b 5b 31 39 3b  |0Hl.[19;1HM.[19;|
+000001b0  38 30 48 6d 0d 0a 1b 5b  31 38 3b 38 30 48 6d 4e  |80Hm...[18;80HmN|
+000001c0  1b 5b 31 39 3b 38 30 48  4e 08 20 6e 0d 0a 1b 5b  |.[19;80HN. n...[|
+000001d0  31 39 3b 38 30 48 4f 08  08 09 09 6f 1b 5b 31 39  |19;80HO....o.[19|
+000001e0  3b 32 48 08 4f 0d 0a 1b  5b 31 39 3b 38 30 48 0d  |;2H.O...[19;80H.|
+000001f0  0a 1b 5b 31 38 3b 31 48  50 1b 5b 31 38 3b 38 30  |..[18;1HP.[18;80|
+00000200  48 70 1b 5b 31 39 3b 31  48 51 1b 5b 31 39 3b 38  |Hp.[19;1HQ.[19;8|
+00000210  30 48 71 0d 0a 1b 5b 31  38 3b 38 30 48 71 52 1b  |0Hq...[18;80HqR.|
+00000220  5b 31 39 3b 38 30 48 52  08 20 72 0d 0a 1b 5b 31  |[19;80HR. r...[1|
+00000230  39 3b 38 30 48 53 08 08  09 09 73 1b 5b 31 39 3b  |9;80HS....s.[19;|
+00000240  32 48 08 53 0d 0a 1b 5b  31 39 3b 38 30 48 0d 0a  |2H.S...[19;80H..|
+00000250  1b 5b 31 38 3b 31 48                              |.[18;1H|
+
+init.js:86 syscall: {cmd: "write", fd: 1, data: Uint8Array(599), offset: 0, length: 599, …}
+wasm_exec.js:399 actCSI: unsupported: ESC[3;21r (0x72)
+
+wasm_exec.js:399 Unsupported ESC[?6h
+process.js?_ts=1615105574977:119 process: {cmd: "result", id: 229, error: null, code: 599, buf: undefined, …}
+init.js:86 syscall: {fd: 3, data: Uint8Array(36), offset: 0, length: 36, cmd: "write", …}
+process.js?_ts=1615105574977:119 process: {cmd: "result", id: 230, error: null, code: 36, buf: undefined, …}
+wasm_exec.js:399 stdout:
+00000000  54 1b 5b 31 38 3b 38 30  48 74 1b 5b 31 39 3b 31  |T.[18;80Ht.[19;1|
+00000010  48 55 1b 5b 31 39 3b 38  30 48 75 0d 0a 1b 5b 31  |HU.[19;80Hu...[1|
+00000020  38 3b 38 30 48 75 56 1b  5b 31 39 3b 38 30 48 56  |8;80HuV.[19;80HV|
+00000030  08 20 76 0d 0a 1b 5b 31  39 3b 38 30 48 57 08 08  |. v...[19;80HW..|
+00000040  09 09 77 1b 5b 31 39 3b  32 48 08 57 0d 0a 1b 5b  |..w.[19;2H.W...[|
+00000050  31 39 3b 38 30 48 0d 0a  1b 5b 31 38 3b 31 48 58  |19;80H...[18;1HX|
+00000060  1b 5b 31 38 3b 38 30 48  78 1b 5b 31 39 3b 31 48  |.[18;80Hx.[19;1H|
+00000070  59 1b 5b 31 39 3b 38 30  48 79 0d 0a 1b 5b 31 38  |Y.[19;80Hy...[18|
+00000080  3b 38 30 48 79 5a 1b 5b  31 39 3b 38 30 48 5a 08  |;80HyZ.[19;80HZ.|
+00000090  20 7a 0d 0a 1b 5b 3f 36  6c 1b 5b 72 1b 5b 32 32  | z...[?6l.[r.[22|
+000000a0  3b 31 48 50 75 73 68 20  3c 52 45 54 55 52 4e 3e  |;1HPush <RETURN>|
+`,
+	},
+	{
+		input: `stdout:
+00000000  1b 5b 3f 33 6c 1b 5b 32  4a 1b 5b 31 3b 31 48 54  |.[?3l.[2J.[1;1HT|
+00000010  65 73 74 20 6f 66 20 63  75 72 73 6f 72 2d 63 6f  |est of cursor-co|
+00000020  6e 74 72 6f 6c 20 63 68  61 72 61 63 74 65 72 73  |ntrol characters|
+00000030  20 69 6e 73 69 64 65 20  45 53 43 20 73 65 71 75  | inside ESC sequ|
+00000040  65 6e 63 65 73 2e 0d 0d  0a 42 65 6c 6f 77 20 73  |ences....Below s|
+00000050  68 6f 75 6c 64 20 62 65  20 66 6f 75 72 20 69 64  |hould be four id|
+00000060  65 6e 74 69 63 61 6c 20  6c 69 6e 65 73 3a 0d 0d  |entical lines:..|
+00000070  0a 0d 0d 0a 41 20 42 20  43 20 44 20 45 20 46 20  |....A B C D E F |
+00000080  47 20 48 20 49 0d 0d 0a  41 1b 5b 32 08 43 42 1b  |G H I...A.[2.CB.|
+00000090  5b 32 08 43 43 1b 5b 32  08 43 44 1b 5b 32 08 43  |[2.CC.[2.CD.[2.C|
+000000a0  45 1b 5b 32 08 43 46 1b  5b 32 08 43 47 1b 5b 32  |E.[2.CF.[2.CG.[2|
+000000b0  08 43 48 1b 5b 32 08 43  49 1b 5b 32 08 43 0d 0d  |.CH.[2.CI.[2.C..|
+000000c0  0a                                                |.|
+
+init.js:86 syscall: {cmd: "write", fd: 1, data: Uint8Array(193), offset: 0, length: 193, …}
+process.js?_ts=1615111086901:119 process: {cmd: "result", id: 181, error: null, code: 193, buf: undefined, …}
+init.js:86 syscall: {length: 36, cmd: "write", fd: 3, data: Uint8Array(36), offset: 0, …}
+process.js?_ts=1615111086901:119 process: {cmd: "result", id: 182, error: null, code: 36, buf: undefined, …}
+wasm_exec.js:399 stdout:
+00000000  41 20 1b 5b 0d 32 43 42  1b 5b 0d 34 43 43 1b 5b  |A .[.2CB.[.4CC.[|
+00000010  0d 36 43 44 1b 5b 0d 38  43 45 1b 5b 0d 31 30 43  |.6CD.[.8CE.[.10C|
+00000020  46 1b 5b 0d 31 32 43 47  1b 5b 0d 31 34 43 48 1b  |F.[.12CG.[.14CH.|
+00000030  5b 0d 31 36 43 49 0d 0d  0a 1b 5b 32 30 6c 41 20  |[.16CI....[20lA |
+00000040  1b 5b 31 0b 41 42 20 1b  5b 31 0b 41 43 20 1b 5b  |.[1.AB .[1.AC .[|
+00000050  31 0b 41 44 20 1b 5b 31  0b 41 45 20 1b 5b 31 0b  |1.AD .[1.AE .[1.|
+00000060  41 46 20 1b 5b 31 0b 41  47 20 1b 5b 31 0b 41 48  |AF .[1.AG .[1.AH|
+00000070  20 1b 5b 31 0b 41 49 20  1b 5b 31 0b 41 0d 0d 0a  | .[1.AI .[1.A...|
+00000080  0d 0d 0a 50 75 73 68 20  3c 52 45 54 55 52 4e 3e  |...Push <RETURN>|
+`,
+		output: `
+Test of cursor-control characters inside ESC sequences.
+Below should be four identical lines:
+
+A B C D E F G H I
+A B C D E F G H I
+A B C D E F G H I
+A B C D E F G H I
+
+Push <RETURN>
+`,
+	},
 }
 
 func TestEmul(t *testing.T) {
@@ -458,8 +564,25 @@ func TestEmul(t *testing.T) {
 			t.Errorf("TestEmul %d: Trim failed: %s", idx, err)
 			continue
 		}
-		for _, l := range lines {
-			fmt.Println(l)
+		expected := strings.Split(test.output, "\n")
+		if len(expected) > 0 && len(expected[0]) == 0 {
+			expected = expected[1:]
+		}
+		if len(expected) > 0 && len(expected[len(expected)-1]) == 0 {
+			expected = expected[:len(expected)-1]
+		}
+		if len(expected) == 0 {
+			for _, l := range lines {
+				fmt.Println(l)
+			}
+		} else {
+			for i, l := range lines {
+				if i >= len(expected) ||
+					strings.TrimRight(l, " ") != expected[i] {
+					t.Errorf("TestEmul %d: line %d differs:\n%s\n%s\n",
+						idx, i, l, expected[i])
+				}
+			}
 		}
 	}
 }

@@ -9,6 +9,7 @@ package vt100
 import (
 	"fmt"
 	"io"
+	"strings"
 )
 
 // Point defines a 2D point.
@@ -35,8 +36,15 @@ type RGBA uint32
 
 // Emulator color codes.
 const (
-	White = RGBA(0xffffffff)
-	Black = RGBA(0x000000ff)
+	Black       = RGBA(0x000000ff)
+	Red         = RGBA(0xcd0000ff)
+	Green       = RGBA(0x00cd00ff)
+	Yellow      = RGBA(0xcdcd00ff)
+	Blue        = RGBA(0x0000eeff)
+	Magenta     = RGBA(0xcd00cdff)
+	Cyan        = RGBA(0x00cdcdff)
+	White       = RGBA(0xe5e5e5ff)
+	BrightWhite = RGBA(0xffffffff)
 )
 
 const (
@@ -49,6 +57,17 @@ type Char struct {
 	Code       rune
 	Foreground RGBA
 	Background RGBA
+	Bold       bool
+	Italic     bool
+	Underline  bool
+}
+
+// Clone creates a new character with the argument code. All other
+// character attributes are copied.
+func (ch Char) Clone(code rune) Char {
+	result := ch
+	result.Code = code
+	return result
 }
 
 // CharDisplay implements terminal display.
@@ -73,23 +92,30 @@ type CharDisplay interface {
 
 // Emulator implements terminal emulator.
 type Emulator struct {
-	display  CharDisplay
-	Size     Point
-	Cursor   Point
-	blank    Char
-	overflow bool
-	state    *state
-	stdout   io.Writer
-	stderr   io.Writer
+	display      CharDisplay
+	Size         Point
+	scrollTop    int
+	scrollBottom int
+	Cursor       Point
+	Default      Char
+	ch           Char
+	overflow     bool
+	state        *state
+	stdout       io.Writer
+	stderr       io.Writer
 }
 
 // NewEmulator creates a new terminal emulator.
 func NewEmulator(stdout, stderr io.Writer, display CharDisplay) *Emulator {
 	e := &Emulator{
 		display: display,
-		state:   stStart,
-		stdout:  stdout,
-		stderr:  stderr,
+		Default: Char{
+			Foreground: Black,
+			Background: BrightWhite,
+		},
+		state:  stStart,
+		stdout: stdout,
+		stderr: stderr,
 	}
 	e.Reset()
 	return e
@@ -98,11 +124,7 @@ func NewEmulator(stdout, stderr io.Writer, display CharDisplay) *Emulator {
 // Reset resets the emulator to initial state.
 func (e *Emulator) Reset() {
 	e.Size = e.display.Size()
-	e.blank = Char{
-		Code:       ' ',
-		Foreground: Black,
-		Background: White,
-	}
+	e.ch = e.Default
 	e.clear(true, true)
 }
 
@@ -133,7 +155,11 @@ func (e *Emulator) debug(format string, a ...interface{}) {
 	if e.stderr == nil {
 		return
 	}
-	e.stderr.Write([]byte(fmt.Sprintf(format, a...)))
+	msg := fmt.Sprintf(format, a...)
+	if !strings.HasSuffix(msg, "\n") {
+		msg += "\n"
+	}
+	e.stderr.Write([]byte(msg))
 }
 
 func (e *Emulator) setIconName(name string) {
@@ -233,11 +259,8 @@ func (e *Emulator) insertChar(code int) {
 		} else {
 			e.moveTo(e.Cursor.Y+1, 0)
 		}
-		e.overflow = true
 	}
-	ch := e.blank
-	ch.Code = rune(code)
-	e.display.Set(e.Cursor, ch)
+	e.display.Set(e.Cursor, e.ch.Clone(rune(code)))
 	if e.Cursor.X+1 >= e.Size.X {
 		e.overflow = true
 	} else {

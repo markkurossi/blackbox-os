@@ -17,7 +17,7 @@ import (
 type action func(e *Emulator, state *state, ch int)
 
 func actError(e *Emulator, state *state, ch int) {
-	e.debug("actError: state=%s, ch=0x%x (%d) '%c'\n", state, ch, ch, ch)
+	e.debug("actError: state=%s, ch=0x%x (%d) '%c'", state, ch, ch, ch)
 	e.setState(stStart)
 }
 
@@ -32,20 +32,28 @@ func actInsertSpace(e *Emulator, state *state, ch int) {
 func actC0Control(e *Emulator, state *state, ch int) {
 	switch ch {
 	case 0x08: // BS
-		e.moveTo(e.Cursor.Y, e.Cursor.X-1)
+		if e.overflow {
+			e.overflow = false
+		} else {
+			e.moveTo(e.Cursor.Y, e.Cursor.X-1)
+		}
 	case 0x09: // Horizontal Tabulation.
 		var x = e.Cursor.X + 1
 		for ; x%8 != 0; x++ {
 		}
 		e.moveTo(e.Cursor.Y, x)
-	case 0x0a: // Linefeed
+
+	case 0x0a: // Linefeed, move to same position on next line (see also NL)
 		e.moveTo(e.Cursor.Y+1, e.Cursor.X)
+
+	case 0x0b: // Vertical Tabulation, move to next predetermined line
+		e.moveTo(e.Cursor.Y+1, e.Cursor.X)
+
 	case 0x0d: // Carriage Return
 		e.moveTo(e.Cursor.Y, 0)
 
 	default:
-		e.debug("actC0Control: %s: %s0x%x\n",
-			state, string(state.parameters), ch)
+		e.debug("actC0Control: %s: 0x%x", state, ch)
 	}
 }
 
@@ -58,8 +66,7 @@ func actC1Control(e *Emulator, state *state, ch int) {
 	case 'M': // Reverse Index, go up one line, reverse scroll if necessary
 		e.moveTo(e.Cursor.Y-1, e.Cursor.X)
 	default:
-		e.debug("actC1Control: %s: %s0x%x\n",
-			state, string(state.parameters), ch)
+		e.debug("actC1Control: %s: %s0x%x", state, string(state.parameters), ch)
 	}
 }
 
@@ -69,7 +76,7 @@ func actTwoCharEscape(e *Emulator, state *state, ch int) {
 		e.Reset()
 
 	default:
-		e.debug("actTwoCharEscape: %s: %s0x%x\n",
+		e.debug("actTwoCharEscape: %s: %s0x%x",
 			state, string(state.parameters), ch)
 	}
 }
@@ -86,12 +93,12 @@ func actPrivateFunction(e *Emulator, state *state, ch int) {
 			e.display.DECALN(e.Size)
 
 		default:
-			e.debug("Unsupported actPrivateFunction: %s%c",
+			e.debug("unsupported actPrivateFunction: %s%c",
 				string(state.parameters), ch)
 		}
 
 	default:
-		e.debug("Unsupported actPrivateFunction: %s%c",
+		e.debug("unsupported actPrivateFunction: %s%c",
 			string(state.parameters), ch)
 	}
 }
@@ -206,16 +213,13 @@ func actCSI(e *Emulator, state *state, ch int) {
 			case 1034: // Interpret "meta" key, sets eight bit (eightBitInput)
 
 			default:
-				e.debug("Unsupported ESC[%sh", string(state.parameters))
+				e.debug("unsupported ESC[%sh", string(state.parameters))
 			}
 		}
 
 	case 'l':
 		prefix, mode := state.csiPrefixParam(0)
 		switch prefix {
-		case "":
-			e.debug("Unsupported ESC[%sl", string(state.parameters))
-
 		case "?": // DEC*
 			switch mode {
 			case 3: // DECCOLM - 80 characters per line (erases screen)
@@ -224,12 +228,116 @@ func actCSI(e *Emulator, state *state, ch int) {
 				e.moveTo(0, 0)
 
 			default:
-				e.debug("DEC*: unknown mode %d", mode)
+				e.debug("unsupported ESC[%sl", string(state.parameters))
+			}
+
+		default:
+			e.debug("unsupported ESC[%sl", string(state.parameters))
+		}
+
+	case 'm':
+		_, params := state.parseCSIParam(nil)
+		for _, param := range params {
+			switch param {
+			case 0: // Clear all special attributes
+				e.ch = e.Default
+
+			case 1: // Bold or increased intensity
+				e.ch.Bold = true
+
+			case 2: // Dim or secondary color on GIGI
+				e.ch.Foreground = White
+
+			case 3: // Italic
+				e.ch.Italic = true
+
+			case 4: // Underscore
+				e.ch.Underline = true
+
+			case 7: // Negative image
+				old := e.ch
+				e.ch.Foreground = old.Background
+				e.ch.Background = old.Foreground
+
+			case 22: // Cancel bold or dim attribute only (VT220)
+				e.ch.Bold = false
+				e.ch.Foreground = e.Default.Foreground
+
+			case 24: // Cancel underline attribute only (VT220)
+				e.ch.Underline = false
+
+			case 27: // Cancel negative image attribute only (VT220)
+				old := e.ch
+				e.ch.Foreground = old.Background
+				e.ch.Background = old.Foreground
+
+			case 30: // Write with black
+				e.ch.Foreground = Black
+
+			case 31: // Write with red
+				e.ch.Foreground = Red
+
+			case 32: // Write with green
+				e.ch.Foreground = Green
+
+			case 33: // Write with yellow
+				e.ch.Foreground = Yellow
+
+			case 34: // Write with blue
+				e.ch.Foreground = Blue
+
+			case 35: // Write with magenta
+				e.ch.Foreground = Magenta
+
+			case 36: // Write with cyan
+				e.ch.Foreground = Cyan
+
+			case 37: // Write with white
+				e.ch.Foreground = White
+
+			case 40: // Set background to black
+				e.ch.Background = Black
+
+			case 41: // Set background to red
+				e.ch.Background = Red
+
+			case 42: // Set background to green
+				e.ch.Background = Green
+
+			case 43: // Set background to yellow
+				e.ch.Background = Yellow
+
+			case 44: // Set background to blue
+				e.ch.Background = Blue
+
+			case 45: // Set background to magenta
+				e.ch.Background = Magenta
+
+			case 46: // Set background to cyan
+				e.ch.Background = Cyan
+
+			case 47: // Set background to white
+				e.ch.Background = White
+
+			default:
+				e.debug("ESC[%sm: unknown attribute: %d",
+					string(state.parameters), param)
 			}
 		}
 
+	case 'r': // DECSTBM - Set top and bottom margins (scroll region on VT100)
+		_, top, bottom := state.csiParams(1, e.Size.Y)
+		e.scrollTop = top - 1
+		if e.scrollTop >= e.Size.Y {
+			e.scrollTop = e.Size.Y - 1
+		}
+		e.scrollBottom = bottom - 1
+		if e.scrollBottom >= e.Size.Y {
+			e.scrollBottom = e.Size.Y - 1
+		}
+
 	default:
-		e.debug("actCSI: unsupported: ESC[%s%c (0x%x)\n",
+		e.debug("actCSI: unsupported: ESC[%s%c (0x%x)",
 			string(state.parameters), ch, ch)
 	}
 }
@@ -362,6 +470,7 @@ func init() {
 	stOSC.addActions(0x07, 0x07, actOSC, stStart)
 	stOSC.addActions(0x9c, 0x9c, actOSC, stStart)
 
+	stCSI.addActions(0x00, 0x1f, actC0Control, nil)
 	stCSI.addActions(0x30, 0x3f, actAppendParam, nil)
 	stCSI.addActions(0x40, 0x7e, actCSI, stStart)
 }

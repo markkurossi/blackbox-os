@@ -9,6 +9,7 @@ package vt100
 import (
 	"io"
 	"math"
+	"os"
 )
 
 var (
@@ -131,7 +132,12 @@ func DisplayWidth(data string) (width, height int, err error) {
 // Trim removes all emulator control codes from the argument data.
 func Trim(data string) (lines []string, err error) {
 	disp := NewStringer()
-	emul := NewEmulator(stdout, stderr, disp)
+
+	e := stderr
+	if false {
+		e = os.Stderr
+	}
+	emul := NewEmulator(stdout, e, disp)
 	for _, r := range []rune(data) {
 		emul.Input(int(r))
 	}
