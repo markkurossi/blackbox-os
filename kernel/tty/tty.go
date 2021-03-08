@@ -9,7 +9,7 @@
 package tty
 
 import (
-	"github.com/markkurossi/blackbox-os/lib/vt100"
+	"github.com/markkurossi/vt100"
 )
 
 type TTYFlags uint

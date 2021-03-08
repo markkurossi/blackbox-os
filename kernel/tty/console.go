@@ -19,7 +19,7 @@ import (
 
 	"github.com/markkurossi/blackbox-os/kernel/control"
 	"github.com/markkurossi/blackbox-os/kernel/kmsg"
-	"github.com/markkurossi/blackbox-os/lib/vt100"
+	"github.com/markkurossi/vt100"
 )
 
 var (

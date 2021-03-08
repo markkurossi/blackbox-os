@@ -21,7 +21,7 @@ import (
 
 	"github.com/markkurossi/blackbox-os/lib/bbos"
 	"github.com/markkurossi/blackbox-os/lib/file"
-	"github.com/markkurossi/blackbox-os/lib/vt100"
+	"github.com/markkurossi/blackbox-os/lib/readline"
 )
 
 var shellPrompt = "bbos \\W $ "
@@ -124,7 +124,7 @@ func main() {
 		builtins[bi.Name] = bi
 	}
 
-	rl := vt100.NewReadline(os.Stdin, os.Stdout, os.Stderr)
+	rl := readline.NewReadline(os.Stdin, os.Stdout, os.Stderr)
 	rl.Tab = func(line string) (string, []string) {
 		return tabCompletion(line)
 	}

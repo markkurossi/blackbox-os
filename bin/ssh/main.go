@@ -18,7 +18,7 @@ import (
 
 	"github.com/markkurossi/blackbox-os/lib/bbos"
 	"github.com/markkurossi/blackbox-os/lib/bbos/log"
-	"github.com/markkurossi/blackbox-os/lib/vt100"
+	"github.com/markkurossi/blackbox-os/lib/readline"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -73,7 +73,7 @@ func sshConnection(user, addr string) error {
 
 	var authMethods = []ssh.AuthMethod{
 		ssh.PasswordCallback(func() (secret string, err error) {
-			return vt100.ReadPassword(
+			return readline.ReadPassword(
 				fmt.Sprintf("%s@%s's password: ", user, addr))
 		}),
 	}
@@ -127,11 +127,11 @@ func sshConnection(user, addr string) error {
 	}
 
 	// Enable raw mode for input.
-	flags, err := vt100.MakeRaw(os.Stdin)
+	flags, err := readline.MakeRaw(os.Stdin)
 	if err != nil {
 		return err
 	}
-	defer vt100.MakeCooked(os.Stdin, flags)
+	defer readline.MakeCooked(os.Stdin, flags)
 
 	go io.Copy(stdin, os.Stdin)
 	go io.Copy(os.Stderr, stderr)

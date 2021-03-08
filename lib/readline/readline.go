@@ -6,7 +6,11 @@
 // All rights reserved.
 //
 
-package vt100
+package readline
+
+import (
+	"github.com/markkurossi/vt100"
+)
 
 import (
 	"fmt"
@@ -104,7 +108,7 @@ func rlStart(rl *Readline, b byte, prompt string) bool {
 
 	case 0x01: // C-a
 		for rl.cursor > 0 {
-			Backspace(rl.stdout)
+			vt100.Backspace(rl.stdout)
 			rl.cursor--
 		}
 
@@ -113,7 +117,7 @@ func rlStart(rl *Readline, b byte, prompt string) bool {
 
 	case 0x04: // C-d
 		if rl.cursor < rl.tail {
-			DeleteChar(rl.stdout)
+			vt100.DeleteChar(rl.stdout)
 			rl.cursor++
 			rl.delete()
 		}
@@ -132,10 +136,10 @@ func rlStart(rl *Readline, b byte, prompt string) bool {
 
 			// Line contains expanded line.
 			for rl.cursor > 0 {
-				Backspace(rl.stdout)
+				vt100.Backspace(rl.stdout)
 				rl.cursor--
 			}
-			EraseLineTail(rl.stdout)
+			vt100.EraseLineTail(rl.stdout)
 
 			l := []byte(line)
 			rl.tail = copy(rl.buf, l)
@@ -154,11 +158,11 @@ func rlStart(rl *Readline, b byte, prompt string) bool {
 
 	case 0x0b: // C-k
 		rl.tail = rl.cursor
-		EraseLineTail(rl.stdout)
+		vt100.EraseLineTail(rl.stdout)
 
 	case 0x0c: // C-l
-		EraseScreen(rl.stdout)
-		MoveTo(rl.stdout, 0, 0)
+		vt100.EraseScreen(rl.stdout)
+		vt100.MoveTo(rl.stdout, 0, 0)
 		fmt.Fprintf(rl.stdout, "%s", prompt)
 		rl.output(rl.buf[:rl.tail])
 
@@ -166,11 +170,11 @@ func rlStart(rl *Readline, b byte, prompt string) bool {
 		if rl.cursor == 0 {
 			break
 		}
-		Backspace(rl.stdout)
+		vt100.Backspace(rl.stdout)
 		if rl.cursor == rl.tail {
-			EraseLineTail(rl.stdout)
+			vt100.EraseLineTail(rl.stdout)
 		} else {
-			DeleteChar(rl.stdout)
+			vt100.DeleteChar(rl.stdout)
 		}
 		rl.delete()
 
@@ -186,7 +190,7 @@ func rlStart(rl *Readline, b byte, prompt string) bool {
 
 			// Move cursor back to its position.
 			for i := rl.tail; i > rl.cursor; i-- {
-				Backspace(rl.stdout)
+				vt100.Backspace(rl.stdout)
 			}
 		} else {
 			fmt.Fprintf(rl.stderr, "readline: skipping non-printable 0x%x\n", b)
@@ -222,14 +226,14 @@ func rlCSI(rl *Readline, b byte, prompt string) bool {
 
 func (rl *Readline) cursorLeft() {
 	if rl.cursor > 0 {
-		Backspace(rl.stdout)
+		vt100.Backspace(rl.stdout)
 		rl.cursor--
 	}
 }
 
 func (rl *Readline) cursorRight() {
 	if rl.cursor < rl.tail {
-		CursorForward(rl.stdout)
+		vt100.CursorForward(rl.stdout)
 		rl.cursor++
 	}
 }

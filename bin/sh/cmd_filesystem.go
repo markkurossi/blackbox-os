@@ -15,7 +15,7 @@ import (
 	"os"
 
 	"github.com/markkurossi/blackbox-os/lib/bbos"
-	"github.com/markkurossi/blackbox-os/lib/vt100"
+	"github.com/markkurossi/blackbox-os/lib/readline"
 )
 
 func init() {
@@ -90,7 +90,7 @@ func ls(dir string) {
 	for _, f := range files {
 		names = append(names, f.Name())
 	}
-	vt100.Tabulate(names, os.Stdout)
+	readline.Tabulate(names, os.Stdout)
 }
 
 func cmd_cat(args []string) {

@@ -6,7 +6,7 @@
 // All rights reserved.
 //
 
-package vt100
+package readline
 
 import (
 	"fmt"
