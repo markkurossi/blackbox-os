@@ -1,7 +1,7 @@
 //
 // console.go
 //
-// Copyright (c) 2018-2021 Markku Rossi
+// Copyright (c) 2018-2021, 2023 Markku Rossi
 //
 // All rights reserved.
 //
@@ -12,6 +12,7 @@ import (
 	"bytes"
 	"encoding/hex"
 	"fmt"
+	"image/color"
 	"sync"
 	"syscall/js"
 	"unicode"
@@ -268,14 +269,19 @@ func (c *Console) Flush() error {
 				flags = 1
 			}
 
-			line.Call("add", int(ch.Code), int(ch.Foreground),
-				int(ch.Background), int(flags))
+			line.Call("add", int(ch.Code), nrgbaToInt(ch.Foreground),
+				nrgbaToInt(ch.Background), int(flags))
 		}
 		line.Call("flush")
 		display.Call("addLine", line)
 	}
 
 	return nil
+}
+
+func nrgbaToInt(c color.NRGBA) int {
+	return int(c.R)<<24 | int(c.G)<<16 | int(c.B)<<8 | int(c.A)
+
 }
 
 // Read implements the io.Reader interface.
